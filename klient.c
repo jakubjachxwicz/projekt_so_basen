@@ -8,7 +8,7 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 
-#define MAX_KLIENCI 20
+#define MAX_KLIENCI 6
 
 static void semafor_v(int semafor_id, int numer_semafora);
 static void semafor_p(int semafor_id, int numer_semafora);
@@ -26,14 +26,29 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    int semafor_kolejka = semget(key, 1, 0600|IPC_CREAT);
-    if (semafor_kolejka == -1)
+    int semafor = semget(key, 4, 0660|IPC_CREAT);
+    if (semafor == -1)
 	{
 		perror("semget - nie udalo sie utworzyc semafora");
 		exit(EXIT_FAILURE);
 	}
 
-    if (semctl(semafor_kolejka, 0, SETVAL, 5) == -1)
+    if (semctl(semafor, 0, SETVAL, 5) == -1)
+    {
+        perror("semctl - nie mozna ustawic semafora");
+        exit(EXIT_FAILURE);
+    }
+    if (semctl(semafor, 1, SETVAL, MAX_KLIENCI) == -1)
+    {
+        perror("semctl - nie mozna ustawic semafora");
+        exit(EXIT_FAILURE);
+    }
+    if (semctl(semafor, 2, SETVAL, 0) == -1)
+    {
+        perror("semctl - nie mozna ustawic semafora");
+        exit(EXIT_FAILURE);
+    }
+    if (semctl(semafor, 3, SETVAL, 0) == -1)
     {
         perror("semctl - nie mozna ustawic semafora");
         exit(EXIT_FAILURE);
@@ -52,22 +67,32 @@ int main()
         } else if (pid == 0)
         {
             // Kod dzialania klienta
-            semafor_p(semafor_kolejka, 0);
+            // semafor_p(semafor, 0);
 
             printf("PID = %d, w kolejce na basen\n", getpid());
             sleep(10);
 
-            printf("PID = %d, wchodze na basen\n", getpid());
-            semafor_v(semafor_kolejka, 0);
+            semafor_p(semafor, 1);
+            semafor_v(semafor, 2);
+            // printf("U kasjera\n");
+            sleep(1);
+            semafor_p(semafor, 3);
+            printf("PID = %d, wchodze na basenik\n", getpid());
 
-            exit(0);
+            // printf("PID = %d, wchodze na basen\n", getpid());
+            // semafor_v(semafor, 0);
+            semafor_v(semafor, 1);
+
+
+            return 0;
         }
     }
 
 
     while (wait(NULL) != -1) {}
 
-	if (semctl(semafor_kolejka, 0, IPC_RMID) == -1)
+	printf("Im bout to delete\n");
+    if (semctl(semafor, 0, IPC_RMID) == -1)
 	{
 		perror("semctl - nie mozna uzunac semaforow");
 		exit(EXIT_FAILURE);
@@ -82,16 +107,20 @@ static void semafor_v(int semafor_id, int numer_semafora)
 	bufor_sem.sem_op = 1;
 	bufor_sem.sem_flg = SEM_UNDO;
 
-	while (semop(semafor_id, &bufor_sem, 1) == -1)
-	{
-		if (errno == EINTR)
-			continue;
-		else
-		{
-			perror("Problem z otwarciem semafora");
-			exit(EXIT_FAILURE);
-		}
-	}
+	printf("V: PID=%d, sem[%d] przed: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
+    semop(semafor_id, &bufor_sem, 1);
+    printf("V: PID=%d, sem[%d] po: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
+
+    // while (semop(semafor_id, &bufor_sem, 1) == -1)
+	// {
+	// 	if (errno == EINTR)
+	// 		continue;
+	// 	else
+	// 	{
+	// 		perror("Problem z otwarciem semafora");
+	// 		exit(EXIT_FAILURE);
+	// 	}
+	// }
 }
 
 static void semafor_p(int semafor_id, int numer_semafora)
@@ -101,14 +130,18 @@ static void semafor_p(int semafor_id, int numer_semafora)
 	bufor_sem.sem_op = -1;
 	bufor_sem.sem_flg = 0;
 
-	while (semop(semafor_id, &bufor_sem, 1) == -1)
-	{
-		if (errno == EINTR)
-			continue;
-		else
-		{
-			perror("Problem z zamknięciem semafora");
-			exit(EXIT_FAILURE);
-		}
-	}
+    printf("P: PID=%d, sem[%d] przed: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
+    semop(semafor_id, &bufor_sem, 1);
+    printf("P: PID=%d, sem[%d] po: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
+
+	// while (semop(semafor_id, &bufor_sem, 1) == -1)
+	// {
+	// 	if (errno == EINTR)
+	// 		continue;
+	// 	else
+	// 	{
+	// 		perror("Problem z zamknięciem semafora");
+	// 		exit(EXIT_FAILURE);
+	// 	}
+	// }
 }
