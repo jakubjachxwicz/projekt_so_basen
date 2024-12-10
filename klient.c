@@ -7,8 +7,9 @@
 #include <stdlib.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
+#include <signal.h>
 
-#define MAX_KLIENCI 6
+#define MAX_KLIENCI 15
 
 static void semafor_v(int semafor_id, int numer_semafora);
 static void semafor_p(int semafor_id, int numer_semafora);
@@ -17,47 +18,25 @@ static void semafor_p(int semafor_id, int numer_semafora);
 int main()
 {
     srand(time(NULL));
-    
-    // Tworzenie semafora kolejki
-    key_t key = ftok(".", "q");
+
+    key_t key = ftok(".", 51);
     if (key == -1)
 	{
 		perror("ftok - nie udalo sie utworzyc klucza");
 		exit(EXIT_FAILURE);
 	}
 
-    int semafor = semget(key, 4, 0660|IPC_CREAT);
+    int semafor = semget(key, 4, 0660);
     if (semafor == -1)
 	{
-		perror("semget - nie udalo sie utworzyc semafora");
+		perror("semget - blad dostepu do semaforow");
 		exit(EXIT_FAILURE);
 	}
-
-    if (semctl(semafor, 0, SETVAL, 5) == -1)
-    {
-        perror("semctl - nie mozna ustawic semafora");
-        exit(EXIT_FAILURE);
-    }
-    if (semctl(semafor, 1, SETVAL, MAX_KLIENCI) == -1)
-    {
-        perror("semctl - nie mozna ustawic semafora");
-        exit(EXIT_FAILURE);
-    }
-    if (semctl(semafor, 2, SETVAL, 0) == -1)
-    {
-        perror("semctl - nie mozna ustawic semafora");
-        exit(EXIT_FAILURE);
-    }
-    if (semctl(semafor, 3, SETVAL, 0) == -1)
-    {
-        perror("semctl - nie mozna ustawic semafora");
-        exit(EXIT_FAILURE);
-    }
     
     // Tworzenie klientow
     for (int i = 0; i < MAX_KLIENCI; i++)
     {
-        sleep((rand() % 3));
+        // sleep((rand() % 3));
         
         pid_t pid = fork();
         if (pid < 0)
@@ -70,12 +49,12 @@ int main()
             // semafor_p(semafor, 0);
 
             printf("PID = %d, w kolejce na basen\n", getpid());
-            sleep(10);
+            //sleep(10);
 
             semafor_p(semafor, 1);
             semafor_v(semafor, 2);
             // printf("U kasjera\n");
-            sleep(1);
+            //sleep(1);
             semafor_p(semafor, 3);
             printf("PID = %d, wchodze na basenik\n", getpid());
 
@@ -90,13 +69,6 @@ int main()
 
 
     while (wait(NULL) != -1) {}
-
-	printf("Im bout to delete\n");
-    if (semctl(semafor, 0, IPC_RMID) == -1)
-	{
-		perror("semctl - nie mozna uzunac semaforow");
-		exit(EXIT_FAILURE);
-	}
 }
 
 
