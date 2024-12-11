@@ -1,0 +1,18 @@
+# Ignorowanie plików wykonywalnych bez rozszerzeń
+symulacja
+klient
+kasjer
+ratownik
+
+# Ignorowanie plików tymczasowych kompilatora
+*.o
+*.a
+*.so
+
+# Ignorowanie plików wygenerowanych przez narzędzia budowania
+*.d
+*.log
+
+# Ignorowanie kopii zapasowych i tymczasowych plików edytora
+*~
+*.swp
