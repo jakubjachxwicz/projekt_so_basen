@@ -8,10 +8,12 @@
 #include <signal.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
+#include "header.h"
 
 
 int main()
 {
+    // Inicjowanie semaforkow
     key_t key = ftok(".", 51);
     if (key == -1)
 	{
@@ -44,6 +46,14 @@ int main()
     if (semctl(semafor, 3, SETVAL, 0) == -1)
     {
         perror("semctl - nie mozna ustawic semafora");
+        exit(EXIT_FAILURE);
+    }
+
+    // Inicjowanie pam. wspoldzielonej do wymiany klient/kasjer
+    int shm_id = shmget(key, sizeof(struct dane_klienta), 0600|IPC_CREAT);
+    if (shm_id == -1)
+    {
+        perror("shmget - tworzenie pamieci wspoldzielonej");
         exit(EXIT_FAILURE);
     }
 
@@ -85,7 +95,7 @@ int main()
     else
         printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
-    if (kill(pid_kasjer, SIGKILL) == -1)
+    if (kill(pid_kasjer, SIGUSR1) == -1)
     {
         perror("kill - zabicie kasjera");
         exit(EXIT_FAILURE);
@@ -99,6 +109,11 @@ int main()
     else
         printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
+    if (shmctl(shm_id, IPC_RMID, 0) == -1)
+    {
+        perror("shmctl - problem z usunieciem pamieci wspoldzielonej");
+        exit(EXIT_FAILURE);
+    }
 
     if (semctl(semafor, 0, IPC_RMID) == -1)
 	{

@@ -9,18 +9,24 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <unistd.h>
-#include <stdbool.h>
+#include "header.h"
+#include <string.h>
 
 
 static void semafor_v(int semafor_id, int numer_semafora);
 static void semafor_p(int semafor_id, int numer_semafora);
+void odlacz_pamiec();
 
 void handle_sigusr1(int sig);
 bool working_flag;
 
+char* shm_adres;
+
 
 int main()
 {
+	struct dane_klienta klient;
+	
 	struct sigaction sa;
 	sa.sa_handler = handle_sigusr1;
     sa.sa_flags = 0;
@@ -47,16 +53,32 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
+	int shm_id = shmget(key, sizeof(struct dane_klienta), 0600);
+    if (shm_id == -1)
+    {
+        perror("shmget - tworzenie pamieci wspoldzielonej");
+        exit(EXIT_FAILURE);
+    }
+
+    shm_adres = (char*)shmat(shm_id, NULL, 0);
+    if (shm_adres == (char*)(-1))
+    {
+        perror("shmat - problem z dolaczeniem pamieci");
+        exit(EXIT_FAILURE);
+    }
+
 
     while (working_flag)
     {
 		semafor_p(semafor, 2);
         // Procesowanie klienta
+		memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
 		sleep(3);
-        printf("Klient wpuszczony na basen\n");
+        printf("Klient o PID = %d wpuszczony na basen\n", klient.PID);
         semafor_v(semafor, 3);
     }
 
+	odlacz_pamiec();
 	exit(0);
 }
 
@@ -109,5 +131,16 @@ static void semafor_p(int semafor_id, int numer_semafora)
 
 void handle_sigusr1(int sig)
 {
-    working_flag = false;
+    odlacz_pamiec();
+	// working_flag = false;
+	exit(0);
+}
+
+void odlacz_pamiec()
+{
+	if (shmdt(shm_adres) == -1)
+	{
+		perror("KASJER: shmdt - problem z odlaczeniem pamieci od procesu");
+        exit(EXIT_FAILURE);
+	}
 }

@@ -8,6 +8,8 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include "header.h"
+#include <string.h>
 
 #define MAX_KLIENCI 15
 
@@ -32,6 +34,20 @@ int main()
 		perror("semget - blad dostepu do semaforow");
 		exit(EXIT_FAILURE);
 	}
+
+    int shm_id = shmget(key, sizeof(struct dane_klienta), 0600);
+    if (shm_id == -1)
+    {
+        perror("shmget - tworzenie pamieci wspoldzielonej");
+        exit(EXIT_FAILURE);
+    }
+
+    char* shm_adres = (char*)shmat(shm_id, NULL, 0);
+    if (shm_adres == (char*)(-1))
+    {
+        perror("shmat - problem z dolaczeniem pamieci");
+        exit(EXIT_FAILURE);
+    }
     
     // Tworzenie klientow
     for (int i = 0; i < MAX_KLIENCI; i++)
@@ -46,12 +62,24 @@ int main()
         } else if (pid == 0)
         {
             // Kod dzialania klienta
+            struct dane_klienta klient;
+            klient.PID = getpid();
+            klient.wiek = (rand() % 70) + 1;
+            klient.wiek_opiekuna = (klient.wiek < 18) ? ((rand() % 53) + 18) : 0;
+            klient.pampers = (klient.wiek <= 3) ? true : false;
+            klient.czepek = rand() % 2;
+
+            // printf("**************\n");
+            // printf("PID = %d, wiek = %d, opiekun = %d, pampers = %d, czepek = %d\n",
+            //     klient.PID, klient.wiek, klient.wiek_opiekuna, klient.pampers, klient.czepek);
+            // printf("**************\n");
             // semafor_p(semafor, 0);
 
             printf("PID = %d, w kolejce na basen\n", getpid());
             //sleep(10);
 
             semafor_p(semafor, 1);
+            memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
             usleep(1000);
             semafor_v(semafor, 2);
             // printf("U kasjera\n");
@@ -63,6 +91,11 @@ int main()
             // semafor_v(semafor, 0);
             semafor_v(semafor, 1);
 
+            if (shmdt(shm_adres) == -1)
+            {
+                perror("shmdt - problem z odlaczeniem pamieci od procesu");
+                exit(EXIT_FAILURE);
+            }
 
             return 0;
         }
