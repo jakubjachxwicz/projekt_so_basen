@@ -73,6 +73,8 @@ int main()
         }
     }
 
+    printf("Kasjer: %d, klienci: %d\n\n", pid_kasjer, pid_klienci);
+
 
     int status;
     pid_t finished;
@@ -83,11 +85,12 @@ int main()
     else
         printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
-    if (kill(pid_kasjer, SIGUSR1) == -1)
+    if (kill(pid_kasjer, SIGKILL) == -1)
     {
         perror("kill - zabicie kasjera");
         exit(EXIT_FAILURE);
     }
+
 
     finished = waitpid(pid_kasjer, &status, 0);
     if (finished == -1) perror("wait");  
@@ -95,8 +98,6 @@ int main()
         printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
     else
         printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
-
-    printf("Kasjer: %d, klienci: %d\n\n", pid_kasjer, pid_klienci);
 
 
     if (semctl(semafor, 0, IPC_RMID) == -1)

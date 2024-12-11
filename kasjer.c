@@ -50,10 +50,9 @@ int main()
 
     while (working_flag)
     {
-        // printf("Kasjer czeka na klienta\n");
 		semafor_p(semafor, 2);
         // Procesowanie klienta
-		//sleep(1);
+		sleep(3);
         printf("Klient wpuszczony na basen\n");
         semafor_v(semafor, 3);
     }
@@ -70,19 +69,19 @@ static void semafor_v(int semafor_id, int numer_semafora)
 	bufor_sem.sem_flg = SEM_UNDO;
 
 	//printf("V: PID=%d, sem[%d] przed: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-    semop(semafor_id, &bufor_sem, 1);
+    // semop(semafor_id, &bufor_sem, 1);
     //printf("V: PID=%d, sem[%d] po: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
 
-    // while (semop(semafor_id, &bufor_sem, 1) == -1)
-	// {
-	// 	if (errno == EINTR)
-	// 		continue;
-	// 	else
-	// 	{
-	// 		perror("Problem z otwarciem semafora");
-	// 		exit(EXIT_FAILURE);
-	// 	}
-	// }
+    while (semop(semafor_id, &bufor_sem, 1) == -1)
+	{
+		if (errno == EINTR)
+			continue;
+		else
+		{
+			perror("Problem z otwarciem semafora");
+			exit(EXIT_FAILURE);
+		}
+	}
 }
 
 static void semafor_p(int semafor_id, int numer_semafora)
@@ -93,19 +92,19 @@ static void semafor_p(int semafor_id, int numer_semafora)
 	bufor_sem.sem_flg = 0;
 
     //printf("P: PID=%d, sem[%d] przed: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-    semop(semafor_id, &bufor_sem, 1);
+    // semop(semafor_id, &bufor_sem, 1);
     //printf("P: PID=%d, sem[%d] po: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
 
-	// while (semop(semafor_id, &bufor_sem, 1) == -1)
-	// {
-	// 	if (errno == EINTR)
-	// 		continue;
-	// 	else
-	// 	{
-	// 		perror("Problem z zamknięciem semafora");
-	// 		exit(EXIT_FAILURE);
-	// 	}
-	// }
+	while (semop(semafor_id, &bufor_sem, 1) == -1)
+	{
+		if (errno == EINTR)
+			continue;
+		else
+		{
+			perror("Problem z zamknięciem semafora");
+			exit(EXIT_FAILURE);
+		}
+	}
 }
 
 void handle_sigusr1(int sig)
