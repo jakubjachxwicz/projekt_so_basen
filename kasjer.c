@@ -74,7 +74,20 @@ int main()
         // Procesowanie klienta
 		memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
 		sleep(3);
-        printf("Klient o PID = %d wpuszczony na basen\n", klient.PID);
+
+		if ((klient.wiek > 18 || klient.wiek < 10) && klient.pieniadze >= 60)
+		{
+			klient.pieniadze -= 60;
+			klient.wpuszczony = true;
+		} else if (klient.pieniadze >= 30)
+		{
+			klient.pieniadze -= 30;
+			klient.wpuszczony = true;
+		} else
+			klient.wpuszczony = false;
+
+        memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
+        printf("[KASJER] Klient o PID = %d obsluzony\n", klient.PID);
         semafor_v(semafor, 3);
     }
 

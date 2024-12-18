@@ -65,9 +65,11 @@ int main()
             struct dane_klienta klient;
             klient.PID = getpid();
             klient.wiek = (rand() % 70) + 1;
-            klient.wiek_opiekuna = (klient.wiek < 18) ? ((rand() % 53) + 18) : 0;
+            klient.wiek_opiekuna = (klient.wiek < 10) ? ((rand() % 53) + 18) : 0;
             klient.pampers = (klient.wiek <= 3) ? true : false;
             klient.czepek = rand() % 2;
+            klient.pieniadze = rand() % 100;
+            klient.VIP = (rand() % 7 == 1 ) ? true : false;
 
             // printf("**************\n");
             // printf("PID = %d, wiek = %d, opiekun = %d, pampers = %d, czepek = %d\n",
@@ -75,21 +77,42 @@ int main()
             // printf("**************\n");
             // semafor_p(semafor, 0);
 
-            printf("PID = %d, w kolejce na basen\n", getpid());
+            printf("[KLIENT PID = %d] w kolejce na basen\n", getpid());
             //sleep(10);
 
-            semafor_p(semafor, 1);
-            memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
-            usleep(1000);
-            semafor_v(semafor, 2);
-            // printf("U kasjera\n");
-            //sleep(1);
-            semafor_p(semafor, 3);
-            printf("PID = %d, wchodze na basenik\n", getpid());
+            if (klient.VIP)
+            {
+                semafor_p(semafor, 4);
+                semafor_p(semafor, 5);
+
+                memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
+                semafor_v(semafor, 6);
+
+                semafor_p(semafor, 7);
+                memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
+                semafor_v(semafor, 4);
+            } else
+            {
+                semafor_p(semafor, 1);
+                memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
+                usleep(1000);
+                semafor_v(semafor, 2);
+                
+                semafor_p(semafor, 3);
+                memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
+                semafor_v(semafor, 1);
+            }
+
+            if (klient.wpuszczony)
+            {
+                printf("[KLIENT PID = %d] wchodze na basenik\n", getpid());
+            } else
+            {
+                printf("[KLIENT PID = %d] nie wpuszczono mnie na basen\n", getpid());
+            }
 
             // printf("PID = %d, wchodze na basen\n", getpid());
             // semafor_v(semafor, 0);
-            semafor_v(semafor, 1);
 
             if (shmdt(shm_adres) == -1)
             {
