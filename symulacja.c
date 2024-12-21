@@ -13,15 +13,27 @@
 #include "header.h"
 
 // Ile mikrosekund irl trwa jedna sekunda w symulacji
-#define SEKUNDA 5000
+// 5000 - 3 min 36 s
+// 2500 - 1 min 48 s
+// 1250 - 54 s
+#define SEKUNDA 1250
 // Adres zmiennej przechowujacej czas
 char* shm_czas_adres;
 
 void *czasomierz();
+void czyszczenie();
+void signal_handler(int sig);
+
+pid_t pid_klienci, pid_kasjer;
+pthread_t t_czasomierz;
+int shm_id, shm_czas_id, semafor;
 
 
 int main()
 {
+    signal(SIGINT, signal_handler);
+    
+    
     // Inicjowanie semaforkow
     key_t key = ftok(".", 51);
     if (key == -1)
@@ -37,7 +49,7 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    int semafor = semget(key, 8, 0660|IPC_CREAT);
+    semafor = semget(key, 8, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie utworzyc semafora");
@@ -66,7 +78,7 @@ int main()
     }
 
     // Inicjowanie pam. wspoldzielonej do wymiany klient/kasjer
-    int shm_id = shmget(key, sizeof(struct dane_klienta), 0600|IPC_CREAT);
+    shm_id = shmget(key, sizeof(struct dane_klienta), 0600|IPC_CREAT);
     if (shm_id == -1)
     {
         perror("shmget - tworzenie pamieci wspoldzielonej");
@@ -74,7 +86,7 @@ int main()
     }
 
     // Inicjowanie pam. wspoldzielonej do obslugi czasu
-    int shm_czas_id = shmget(key_czas, sizeof(int), 0600|IPC_CREAT);
+    shm_czas_id = shmget(key_czas, sizeof(int), 0600|IPC_CREAT);
     if (shm_czas_id == -1)
     {
         perror("shmget - tworzenie pamieci wspoldzielonej do obługi czasu");
@@ -89,11 +101,9 @@ int main()
     }
 
     *shm_czas_adres = 0;
-    pthread_t t_czasomierz;
     pthread_create(&t_czasomierz, NULL, &czasomierz, NULL);
 
 
-    pid_t pid_klienci, pid_kasjer;
     pid_klienci = fork();
     if (pid_klienci < 0)
     {
@@ -120,7 +130,34 @@ int main()
 
     printf("Kasjer PID: %d, klienci PID: %d\n\n", pid_kasjer, pid_klienci);
 
+    czyszczenie();
 
+    return 0;
+}
+
+
+void *czasomierz()
+{
+    int jaki_czas;
+    memcpy(&jaki_czas, shm_czas_adres, sizeof(int));
+    while (jaki_czas < 43200)
+    {
+        usleep(SEKUNDA);
+        jaki_czas++;
+        memcpy(shm_czas_adres, &jaki_czas, sizeof(int));
+
+        if ((jaki_czas % 200) == 0)
+        {
+            printf("********************************\n");
+            printf("[WLADCA CZASU]: Minelo %d sekund\n", jaki_czas);
+            printf("********************************\n");
+        }
+    }
+}
+
+
+void czyszczenie()
+{
     int status;
     pid_t finished;
     finished = waitpid(pid_klienci, &status, 0);
@@ -135,7 +172,6 @@ int main()
         perror("kill - zabicie kasjera");
         exit(EXIT_FAILURE);
     }
-
 
     finished = waitpid(pid_kasjer, &status, 0);
     if (finished == -1) perror("wait");  
@@ -162,26 +198,14 @@ int main()
 		perror("semctl - nie mozna uzunac semaforow");
 		exit(EXIT_FAILURE);
 	}
-
-    return 0;
 }
 
-
-void *czasomierz()
+void signal_handler(int sig)
 {
-    int jaki_czas;
-    memcpy(&jaki_czas, shm_czas_adres, sizeof(int));
-    while (jaki_czas < 43200)
+    if (sig == SIGINT)
     {
-        usleep(SEKUNDA);
-        jaki_czas++;
-        memcpy(shm_czas_adres, &jaki_czas, sizeof(int));
-
-        // if ((jaki_czas % 100) == 0)
-        // {
-        //     printf("********************************\n");
-        //     printf("[WLADCA CZASU]: Minelo %d sekund\n", jaki_czas);
-        //     printf("********************************\n");
-        // }
+        czyszczenie();
+        exit(0);
     }
+	
 }
