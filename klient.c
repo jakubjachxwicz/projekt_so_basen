@@ -28,6 +28,13 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
+    key_t key_czas = ftok(".", 52);
+    if (key_czas == -1)
+	{
+		perror("ftok - nie udalo sie utworzyc klucza");
+		exit(EXIT_FAILURE);
+	}
+
     int semafor = semget(key, 4, 0660);
     if (semafor == -1)
 	{
@@ -48,9 +55,26 @@ int main()
         perror("shmat - problem z dolaczeniem pamieci");
         exit(EXIT_FAILURE);
     }
+
+    // Uzyskanie pamieci wspoldzielonej do obslugi czasu
+    int shm_czas_id = shmget(key_czas, sizeof(int), 0600);
+    if (shm_czas_id == -1)
+    {
+        perror("shmget - tworzenie pamieci wspoldzielonej do obługi czasu");
+        exit(EXIT_FAILURE);
+    }
+
+    char* shm_czas_adres = (char*)shmat(shm_czas_id, NULL, 0);
+    if (shm_czas_adres == (char*)(-1))
+    {
+        perror("shmat - problem z dolaczeniem pamieci do obslugi czasu");
+        exit(EXIT_FAILURE);
+    }
     
     // Tworzenie klientow
-    for (int i = 0; i < MAX_KLIENCI; i++)
+    int aktualny_czas;
+    memcpy(&aktualny_czas, shm_czas_adres, sizeof(int));
+    while (aktualny_czas < 43200)
     {
         sleep((rand() % 6) + 2);
         
@@ -65,9 +89,11 @@ int main()
             struct dane_klienta klient;
             klient.PID = getpid();
             klient.wiek = (rand() % 70) + 1;
-            klient.wiek_opiekuna = (klient.wiek < 18) ? ((rand() % 53) + 18) : 0;
+            klient.wiek_opiekuna = (klient.wiek < 10) ? ((rand() % 53) + 18) : 0;
             klient.pampers = (klient.wiek <= 3) ? true : false;
             klient.czepek = rand() % 2;
+            klient.pieniadze = rand() % 100;
+            klient.VIP = (rand() % 7 == 1 ) ? true : false;
 
             // printf("**************\n");
             // printf("PID = %d, wiek = %d, opiekun = %d, pampers = %d, czepek = %d\n",
@@ -75,21 +101,28 @@ int main()
             // printf("**************\n");
             // semafor_p(semafor, 0);
 
-            printf("PID = %d, w kolejce na basen\n", getpid());
+            printf("[KLIENT PID = %d] w kolejce na basen\n", getpid());
             //sleep(10);
 
             semafor_p(semafor, 1);
             memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
             usleep(1000);
             semafor_v(semafor, 2);
-            // printf("U kasjera\n");
-            //sleep(1);
+                
             semafor_p(semafor, 3);
-            printf("PID = %d, wchodze na basenik\n", getpid());
+            memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
+            semafor_v(semafor, 1);
+
+            if (klient.wpuszczony)
+            {
+                printf("[KLIENT PID = %d] wchodze na basenik\n", getpid());
+            } else
+            {
+                printf("[KLIENT PID = %d] nie wpuszczono mnie na basen\n", getpid());
+            }
 
             // printf("PID = %d, wchodze na basen\n", getpid());
             // semafor_v(semafor, 0);
-            semafor_v(semafor, 1);
 
             if (shmdt(shm_adres) == -1)
             {
@@ -99,6 +132,8 @@ int main()
 
             return 0;
         }
+
+        memcpy(&aktualny_czas, shm_czas_adres, sizeof(int));
     }
 
 
