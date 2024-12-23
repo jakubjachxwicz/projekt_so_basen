@@ -11,6 +11,8 @@
 #include <signal.h>
 #include <string.h>
 #include <stdio.h>
+#include <pthread.h>
+#include <sys/msg.h>
 
 
 void godz_sym(int sekundy, char* res)

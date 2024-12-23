@@ -1,17 +1,5 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <sys/shm.h>
-#include <sys/wait.h>
-#include <pthread.h>
-#include <string.h>
-
 #include "header.h"
+#include "utils.c"
 
 // Ile mikrosekund irl trwa jedna sekunda w symulacji
 // 5000 - 3 min 36 s + 7 s
@@ -30,7 +18,7 @@ void signal_handler(int sig);
 
 pid_t pid_klienci, pid_kasjer;
 pthread_t t_czasomierz;
-int shm_id, shm_czas_id, semafor;
+int shm_id, shm_czas_id, semafor, msq_kolejka_vip;
 
 
 int main()
@@ -55,14 +43,14 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 4, 0660|IPC_CREAT);
+    semafor = semget(key, 6, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie utworzyc semafora");
 		exit(EXIT_FAILURE);
 	}
 
-    if (semctl(semafor, 0, SETVAL, 5) == -1)
+    if (semctl(semafor, 0, SETVAL, 6) == -1)
     {
         perror("semctl - nie mozna ustawic semafora");
         exit(EXIT_FAILURE);
@@ -80,6 +68,24 @@ int main()
     if (semctl(semafor, 3, SETVAL, 0) == -1)
     {
         perror("semctl - nie mozna ustawic semafora");
+        exit(EXIT_FAILURE);
+    }
+    if (semctl(semafor, 4, SETVAL, 16) == -1)
+    {
+        perror("semctl - nie mozna ustawic semafora");
+        exit(EXIT_FAILURE);
+    }
+    if (semctl(semafor, 5, SETVAL, 5) == -1)
+    {
+        perror("semctl - nie mozna ustawic semafora");
+        exit(EXIT_FAILURE);
+    }
+
+    // Inicjowanie kolejki komunikatow do wymiany klient VIP/kasjer
+    msq_kolejka_vip = msgget(key, IPC_CREAT | 0600);
+    if (msq_kolejka_vip == -1)
+    {
+        perror("msgget - tworzenie kolejki kom. do wymiany klient VIP/kasjer");
         exit(EXIT_FAILURE);
     }
 
@@ -192,6 +198,12 @@ void czyszczenie()
 		perror("semctl - nie mozna uzunac semaforow");
 		exit(EXIT_FAILURE);
 	}
+
+    if (msgctl(msq_kolejka_vip, IPC_RMID, 0) == -1)
+    {
+        perror("msgctl - problem przy usuwaniu kolejki kom. do obslugi klient VIP/kasjer");
+        exit(EXIT_FAILURE);
+    }
 }
 
 void signal_handler(int sig)

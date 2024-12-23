@@ -1,4 +1,3 @@
-#include <pthread.h>
 #include "utils.c"
 #include "header.h"
 
@@ -75,6 +74,13 @@ int main()
         exit(EXIT_FAILURE);
     }
 
+    int msq_kolejka_vip = msgget(key, 0600);
+    if (msq_kolejka_vip == -1)
+    {
+        perror("msgget - dostep do kolejki kom. do obslugi klient VIP/kasjer");
+        exit(EXIT_FAILURE);
+    }
+
     pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL);
 
     // Tworzenie klientow
@@ -99,18 +105,47 @@ int main()
             klient.pieniadze = rand() % 100;
             klient.VIP = (rand() % 7 == 1 ) ? true : false;
 
-            godz_sym(*((int *)shm_czas_adres), godzina);
-            printf("[%s KLIENT PID = %d] w kolejce na basen\n", godzina, getpid());
-
-            semafor_p(semafor, 1);
-            memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
-            usleep(1000);
-            semafor_v(semafor, 2);
+            if (klient.VIP)
+            {
+                godz_sym(*((int *)shm_czas_adres), godzina);
+                printf("[%s VIP PID = %d] podchodzi do kasy\n", godzina, getpid());
                 
-            semafor_p(semafor, 3);
-            memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
-            semafor_v(semafor, 1);
+                struct komunikat kom;
+                kom.mtype = KOM_KASJER;
+                kom.ktype = klient.PID;
+                strcpy(kom.mtext, "pokazuje karnet VIP");
 
+                if (msgsnd(msq_kolejka_vip, &kom, sizeof(kom) - sizeof(long), 0) == -1)
+                {
+                    perror("msgsnd - wysylanie komunikatu klienta VIP");
+                    exit(EXIT_FAILURE);
+                }
+
+                if (msgrcv(msq_kolejka_vip, &kom, sizeof(kom) - sizeof(long), kom.ktype, 0) == -1)
+                {
+                    perror("msgrcv - odbieranie komunikatu klienta VIP");
+                    exit(EXIT_FAILURE);
+                }
+
+                if (strcmp(kom.mtext, "zapraszam") == 0)
+                    klient.wpuszczony = true;
+                else
+                    klient.wpuszczony = false;
+            } else
+            {
+                godz_sym(*((int *)shm_czas_adres), godzina);
+                printf("[%s KLIENT PID = %d] w kolejce na basen\n", godzina, getpid());
+
+                semafor_p(semafor, 1);
+                memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
+                usleep(1000);
+                semafor_v(semafor, 2);
+
+                semafor_p(semafor, 3);
+                memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
+                semafor_v(semafor, 1);
+            }
+                
             if (klient.wpuszczony)
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);

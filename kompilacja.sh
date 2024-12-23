@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Kompilacja programu kasjer
-gcc -o kasjer kasjer.c
+gcc -pthread -o kasjer kasjer.c
 if [ $? -ne 0 ]; then
     echo "Błąd kompilacji kasjer.c"
     exit 1
