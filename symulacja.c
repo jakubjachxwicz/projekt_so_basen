@@ -10,6 +10,7 @@
 #include <sys/wait.h>
 #include <pthread.h>
 #include <string.h>
+
 #include "header.h"
 
 // Ile mikrosekund irl trwa jedna sekunda w symulacji
@@ -17,7 +18,7 @@
 // 2500 - 1 min 48 s + 7 s
 // 1250 - 54 s + 7 s
 // 1667 - 1 min 12 s + 7 s
-#define SEKUNDA 1250
+#define SEKUNDA 5000
 // Adres zmiennej przechowujacej czas
 char* shm_czas_adres;
 
@@ -54,7 +55,7 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 8, 0660|IPC_CREAT);
+    semafor = semget(key, 4, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie utworzyc semafora");
@@ -144,19 +145,13 @@ int main()
 void *czasomierz()
 {
     int *jaki_czas = (int *)shm_czas_adres;
-    while (*jaki_czas <= 43200 && !stop_time)
+    while (*jaki_czas < 44100 && !stop_time)
     {
         usleep(SEKUNDA);
         (*jaki_czas)++;
-
-        // if (((*jaki_czas) % 200) == 0)
-        // {
-        //     printf("********************************\n");
-        //     printf("[WLADCA CZASU]: Minelo %d sekund aaa = %d\n", *jaki_czas, time(NULL));
-        //     printf("********************************\n");
-        // }
     }
 
+    kill(pid_kasjer, SIGINT);
     return 0;
 }
 
@@ -203,9 +198,6 @@ void signal_handler(int sig)
 {
     if (sig == SIGINT)
     {
-        kill(pid_klienci, 9);
-        kill(pid_kasjer, 9);
-
         stop_time = true;
         
         czyszczenie();

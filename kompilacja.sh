@@ -8,7 +8,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Kompilacja programu klient
-gcc -o klient klient.c
+gcc -pthread -o klient klient.c
 if [ $? -ne 0 ]; then
     echo "Błąd kompilacji klient.c"
     exit 1

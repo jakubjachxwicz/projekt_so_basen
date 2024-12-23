@@ -8,9 +8,11 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <string.h>
+
 #include <unistd.h>
 #include "header.h"
-#include <string.h>
+#include "utils.c"
 
 
 static void semafor_v(int semafor_id, int numer_semafora);
@@ -26,6 +28,7 @@ int main()
     signal(SIGINT, signal_handler);
 	
 	struct dane_klienta klient;
+	char godzina[9];
 
 	key_t key = ftok(".", 51);
     if (key == -1)
@@ -77,9 +80,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-	int aktualny_czas;
-    memcpy(&aktualny_czas, shm_czas_adres, sizeof(int));
-    while (aktualny_czas < 43200)
+    while (*((int*)(shm_czas_adres)) < 43200)
     {
 		semafor_p(semafor, 2);
         // Procesowanie klienta
@@ -98,54 +99,15 @@ int main()
 			klient.wpuszczony = false;
 
         memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
-        printf("[KASJER] Klient o PID = %d obsluzony\n", klient.PID);
+
+		godz_sym(*((int *)shm_czas_adres), godzina);
+        printf("[%s KASJER] Klient o PID = %d obsluzony\n", godzina, klient.PID);
+
         semafor_v(semafor, 3);
-
-
-		memcpy(&aktualny_czas, shm_czas_adres, sizeof(int));
     }
 
 	odlacz_pamiec();
 	exit(0);
-}
-
-
-static void semafor_v(int semafor_id, int numer_semafora)
-{
-	struct sembuf bufor_sem;
-	bufor_sem.sem_num = numer_semafora;
-	bufor_sem.sem_op = 1;
-	bufor_sem.sem_flg = SEM_UNDO;
-
-    while (semop(semafor_id, &bufor_sem, 1) == -1)
-	{
-		if (errno == EINTR)
-			continue;
-		else
-		{
-			perror("Problem z otwarciem semafora");
-			exit(EXIT_FAILURE);
-		}
-	}
-}
-
-static void semafor_p(int semafor_id, int numer_semafora)
-{
-	struct sembuf bufor_sem;
-	bufor_sem.sem_num = numer_semafora;
-	bufor_sem.sem_op = -1;
-	bufor_sem.sem_flg = 0;
-
-	while (semop(semafor_id, &bufor_sem, 1) == -1)
-	{
-		if (errno == EINTR)
-			continue;
-		else
-		{
-			perror("Problem z zamknięciem semafora");
-			exit(EXIT_FAILURE);
-		}
-	}
 }
 
 void odlacz_pamiec()
@@ -161,8 +123,6 @@ void signal_handler(int sig)
 {
     if (sig == SIGINT)
     {
-        printf("AAAAAAAAAAAAAAAA\n");
-		
 		odlacz_pamiec();
         exit(0);
     }
