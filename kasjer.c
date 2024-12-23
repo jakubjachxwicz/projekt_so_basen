@@ -8,39 +8,37 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <string.h>
+
 #include <unistd.h>
 #include "header.h"
-#include <string.h>
+#include "utils.c"
 
 
 static void semafor_v(int semafor_id, int numer_semafora);
 static void semafor_p(int semafor_id, int numer_semafora);
 void odlacz_pamiec();
-
-void handle_sigusr1(int sig);
-bool working_flag;
+void signal_handler(int sig);
 
 char* shm_adres;
 
 
 int main()
 {
+    signal(SIGINT, signal_handler);
+	
 	struct dane_klienta klient;
-	
-	struct sigaction sa;
-	sa.sa_handler = handle_sigusr1;
-    sa.sa_flags = 0;
-    sigemptyset(&sa.sa_mask);
-	
-	if (sigaction(SIGUSR1, &sa, NULL) == -1) {
-        perror("Error setting signal handler");
-        return 1;
-    }
+	char godzina[9];
 
-	working_flag = true;
-	
 	key_t key = ftok(".", 51);
     if (key == -1)
+	{
+		perror("ftok - nie udalo sie utworzyc klucza");
+		exit(EXIT_FAILURE);
+	}
+
+	key_t key_czas = ftok(".", 52);
+    if (key_czas == -1)
 	{
 		perror("ftok - nie udalo sie utworzyc klucza");
 		exit(EXIT_FAILURE);
@@ -67,8 +65,22 @@ int main()
         exit(EXIT_FAILURE);
     }
 
+	// Uzyskanie pamieci wspoldzielonej do obslugi czasu
+    int shm_czas_id = shmget(key_czas, sizeof(int), 0600);
+    if (shm_czas_id == -1)
+    {
+        perror("shmget - tworzenie pamieci wspoldzielonej do obługi czasu");
+        exit(EXIT_FAILURE);
+    }
 
-    while (working_flag)
+    char* shm_czas_adres = (char*)shmat(shm_czas_id, NULL, 0);
+    if (shm_czas_adres == (char*)(-1))
+    {
+        perror("shmat - problem z dolaczeniem pamieci do obslugi czasu");
+        exit(EXIT_FAILURE);
+    }
+
+    while (*((int*)(shm_czas_adres)) < 43200)
     {
 		semafor_p(semafor, 2);
         // Procesowanie klienta
@@ -87,65 +99,14 @@ int main()
 			klient.wpuszczony = false;
 
         memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
-        printf("[KASJER] Klient o PID = %d obsluzony\n", klient.PID);
+
+		godz_sym(*((int *)shm_czas_adres), godzina);
+        printf("[%s KASJER] Klient o PID = %d obsluzony\n", godzina, klient.PID);
+
         semafor_v(semafor, 3);
     }
 
 	odlacz_pamiec();
-	exit(0);
-}
-
-
-static void semafor_v(int semafor_id, int numer_semafora)
-{
-	struct sembuf bufor_sem;
-	bufor_sem.sem_num = numer_semafora;
-	bufor_sem.sem_op = 1;
-	bufor_sem.sem_flg = SEM_UNDO;
-
-	//printf("V: PID=%d, sem[%d] przed: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-    // semop(semafor_id, &bufor_sem, 1);
-    //printf("V: PID=%d, sem[%d] po: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-
-    while (semop(semafor_id, &bufor_sem, 1) == -1)
-	{
-		if (errno == EINTR)
-			continue;
-		else
-		{
-			perror("Problem z otwarciem semafora");
-			exit(EXIT_FAILURE);
-		}
-	}
-}
-
-static void semafor_p(int semafor_id, int numer_semafora)
-{
-	struct sembuf bufor_sem;
-	bufor_sem.sem_num = numer_semafora;
-	bufor_sem.sem_op = -1;
-	bufor_sem.sem_flg = 0;
-
-    //printf("P: PID=%d, sem[%d] przed: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-    // semop(semafor_id, &bufor_sem, 1);
-    //printf("P: PID=%d, sem[%d] po: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-
-	while (semop(semafor_id, &bufor_sem, 1) == -1)
-	{
-		if (errno == EINTR)
-			continue;
-		else
-		{
-			perror("Problem z zamknięciem semafora");
-			exit(EXIT_FAILURE);
-		}
-	}
-}
-
-void handle_sigusr1(int sig)
-{
-    odlacz_pamiec();
-	// working_flag = false;
 	exit(0);
 }
 
@@ -156,4 +117,13 @@ void odlacz_pamiec()
 		perror("KASJER: shmdt - problem z odlaczeniem pamieci od procesu");
         exit(EXIT_FAILURE);
 	}
+}
+
+void signal_handler(int sig)
+{
+    if (sig == SIGINT)
+    {
+		odlacz_pamiec();
+        exit(0);
+    }
 }

@@ -1,24 +1,28 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <sys/shm.h>
-#include <sys/wait.h>
-#include <signal.h>
+#include <pthread.h>
+#include "utils.c"
 #include "header.h"
-#include <string.h>
 
 #define MAX_KLIENCI 15
 
 static void semafor_v(int semafor_id, int numer_semafora);
 static void semafor_p(int semafor_id, int numer_semafora);
+void signal_handler(int sig);
+void *usuwanie_procesow();
+
+pid_t pid_macierzysty;
+pthread_t t_usuwanie_procesow;
+
+bool flag_usuwanie;
 
 
 int main()
 {
+    signal(SIGINT, signal_handler);
+    pid_macierzysty = getpid();
+
+    char godzina[9];
+    flag_usuwanie = true;
+    
     srand(time(NULL));
 
     key_t key = ftok(".", 51);
@@ -70,11 +74,11 @@ int main()
         perror("shmat - problem z dolaczeniem pamieci do obslugi czasu");
         exit(EXIT_FAILURE);
     }
-    
+
+    pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL);
+
     // Tworzenie klientow
-    int aktualny_czas;
-    memcpy(&aktualny_czas, shm_czas_adres, sizeof(int));
-    while (aktualny_czas < 43200)
+    while (*((int*)(shm_czas_adres)) < (43200 - 3600))
     {
         sleep((rand() % 6) + 2);
         
@@ -95,14 +99,8 @@ int main()
             klient.pieniadze = rand() % 100;
             klient.VIP = (rand() % 7 == 1 ) ? true : false;
 
-            // printf("**************\n");
-            // printf("PID = %d, wiek = %d, opiekun = %d, pampers = %d, czepek = %d\n",
-            //     klient.PID, klient.wiek, klient.wiek_opiekuna, klient.pampers, klient.czepek);
-            // printf("**************\n");
-            // semafor_p(semafor, 0);
-
-            printf("[KLIENT PID = %d] w kolejce na basen\n", getpid());
-            //sleep(10);
+            godz_sym(*((int *)shm_czas_adres), godzina);
+            printf("[%s KLIENT PID = %d] w kolejce na basen\n", godzina, getpid());
 
             semafor_p(semafor, 1);
             memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
@@ -115,14 +113,13 @@ int main()
 
             if (klient.wpuszczony)
             {
-                printf("[KLIENT PID = %d] wchodze na basenik\n", getpid());
+                godz_sym(*((int *)shm_czas_adres), godzina);
+                printf("[%s KLIENT PID = %d] wchodze na basenik\n", godzina, getpid());
             } else
             {
-                printf("[KLIENT PID = %d] nie wpuszczono mnie na basen\n", getpid());
+                godz_sym(*((int *)shm_czas_adres), godzina);
+                printf("[%s KLIENT PID = %d] nie wpuszczono mnie na basen\n", godzina, getpid());
             }
-
-            // printf("PID = %d, wchodze na basen\n", getpid());
-            // semafor_v(semafor, 0);
 
             if (shmdt(shm_adres) == -1)
             {
@@ -130,59 +127,30 @@ int main()
                 exit(EXIT_FAILURE);
             }
 
-            return 0;
+            exit(0);
         }
-
-        memcpy(&aktualny_czas, shm_czas_adres, sizeof(int));
     }
 
 
     while (wait(NULL) != -1) {}
+    flag_usuwanie = false;
+    pthread_join(t_usuwanie_procesow, NULL);
+    exit(0);
 }
 
-
-static void semafor_v(int semafor_id, int numer_semafora)
+void signal_handler(int sig)
 {
-	struct sembuf bufor_sem;
-	bufor_sem.sem_num = numer_semafora;
-	bufor_sem.sem_op = 1;
-	bufor_sem.sem_flg = 0;
-
-	// printf("V: PID=%d, sem[%d] przed: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-    // semop(semafor_id, &bufor_sem, 1);
-    // printf("V: PID=%d, sem[%d] po: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-
-    while (semop(semafor_id, &bufor_sem, 1) == -1)
-	{
-		if (errno == EINTR)
-			continue;
-		else
-		{
-			perror("Problem z otwarciem semafora");
-			exit(EXIT_FAILURE);
-		}
-	}
+    if (sig == SIGINT)
+    {
+        while (wait(NULL) != -1) {}
+        exit(0);
+    }
 }
 
-static void semafor_p(int semafor_id, int numer_semafora)
+void *usuwanie_procesow()
 {
-	struct sembuf bufor_sem;
-	bufor_sem.sem_num = numer_semafora;
-	bufor_sem.sem_op = -1;
-	bufor_sem.sem_flg = 0;
+    while (flag_usuwanie)
+        wait(NULL);
 
-    // printf("P: PID=%d, sem[%d] przed: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-    // semop(semafor_id, &bufor_sem, 1);
-    // printf("P: PID=%d, sem[%d] po: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-
-	while (semop(semafor_id, &bufor_sem, 1) == -1)
-	{
-		if (errno == EINTR)
-			continue;
-		else
-		{
-			perror("Problem z zamknięciem semafora");
-			exit(EXIT_FAILURE);
-		}
-	}
+    return 0;
 }
