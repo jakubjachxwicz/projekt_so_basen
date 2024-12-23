@@ -13,12 +13,15 @@
 #include "header.h"
 
 // Ile mikrosekund irl trwa jedna sekunda w symulacji
-// 5000 - 3 min 36 s
-// 2500 - 1 min 48 s
-// 1250 - 54 s
+// 5000 - 3 min 36 s + 7 s
+// 2500 - 1 min 48 s + 7 s
+// 1250 - 54 s + 7 s
+// 1667 - 1 min 12 s + 7 s
 #define SEKUNDA 1250
 // Adres zmiennej przechowujacej czas
 char* shm_czas_adres;
+
+bool stop_time;
 
 void *czasomierz();
 void czyszczenie();
@@ -32,6 +35,8 @@ int shm_id, shm_czas_id, semafor;
 int main()
 {
     signal(SIGINT, signal_handler);
+
+    stop_time = false;
     
     
     // Inicjowanie semaforkow
@@ -138,21 +143,21 @@ int main()
 
 void *czasomierz()
 {
-    int jaki_czas;
-    memcpy(&jaki_czas, shm_czas_adres, sizeof(int));
-    while (jaki_czas < 43200)
+    int *jaki_czas = (int *)shm_czas_adres;
+    while (*jaki_czas <= 43200 && !stop_time)
     {
         usleep(SEKUNDA);
-        jaki_czas++;
-        memcpy(shm_czas_adres, &jaki_czas, sizeof(int));
+        (*jaki_czas)++;
 
-        if ((jaki_czas % 200) == 0)
-        {
-            printf("********************************\n");
-            printf("[WLADCA CZASU]: Minelo %d sekund\n", jaki_czas);
-            printf("********************************\n");
-        }
+        // if (((*jaki_czas) % 200) == 0)
+        // {
+        //     printf("********************************\n");
+        //     printf("[WLADCA CZASU]: Minelo %d sekund aaa = %d\n", *jaki_czas, time(NULL));
+        //     printf("********************************\n");
+        // }
     }
+
+    return 0;
 }
 
 
@@ -166,12 +171,6 @@ void czyszczenie()
         printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
     else
         printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
-
-    if (kill(pid_kasjer, SIGUSR1) == -1)
-    {
-        perror("kill - zabicie kasjera");
-        exit(EXIT_FAILURE);
-    }
 
     finished = waitpid(pid_kasjer, &status, 0);
     if (finished == -1) perror("wait");  
@@ -204,8 +203,12 @@ void signal_handler(int sig)
 {
     if (sig == SIGINT)
     {
+        kill(pid_klienci, 9);
+        kill(pid_kasjer, 9);
+
+        stop_time = true;
+        
         czyszczenie();
         exit(0);
     }
-	
 }

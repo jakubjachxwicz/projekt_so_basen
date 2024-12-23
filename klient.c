@@ -15,10 +15,16 @@
 
 static void semafor_v(int semafor_id, int numer_semafora);
 static void semafor_p(int semafor_id, int numer_semafora);
+void signal_handler(int sig);
+
+pid_t pid_macierzysty;
 
 
 int main()
 {
+    signal(SIGINT, signal_handler);
+    pid_macierzysty = getpid();
+    
     srand(time(NULL));
 
     key_t key = ftok(".", 51);
@@ -70,6 +76,10 @@ int main()
         perror("shmat - problem z dolaczeniem pamieci do obslugi czasu");
         exit(EXIT_FAILURE);
     }
+
+
+    printf("YO YO YO proces macierzysty here: %d\n", getpid());
+
     
     // Tworzenie klientow
     int aktualny_czas;
@@ -86,6 +96,8 @@ int main()
         } else if (pid == 0)
         {
             // Kod dzialania klienta
+            signal(SIGINT, SIG_IGN);
+            
             struct dane_klienta klient;
             klient.PID = getpid();
             klient.wiek = (rand() % 70) + 1;
@@ -95,14 +107,7 @@ int main()
             klient.pieniadze = rand() % 100;
             klient.VIP = (rand() % 7 == 1 ) ? true : false;
 
-            // printf("**************\n");
-            // printf("PID = %d, wiek = %d, opiekun = %d, pampers = %d, czepek = %d\n",
-            //     klient.PID, klient.wiek, klient.wiek_opiekuna, klient.pampers, klient.czepek);
-            // printf("**************\n");
-            // semafor_p(semafor, 0);
-
             printf("[KLIENT PID = %d] w kolejce na basen\n", getpid());
-            //sleep(10);
 
             semafor_p(semafor, 1);
             memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
@@ -121,16 +126,13 @@ int main()
                 printf("[KLIENT PID = %d] nie wpuszczono mnie na basen\n", getpid());
             }
 
-            // printf("PID = %d, wchodze na basen\n", getpid());
-            // semafor_v(semafor, 0);
-
             if (shmdt(shm_adres) == -1)
             {
                 perror("shmdt - problem z odlaczeniem pamieci od procesu");
                 exit(EXIT_FAILURE);
             }
 
-            return 0;
+            exit(0);
         }
 
         memcpy(&aktualny_czas, shm_czas_adres, sizeof(int));
@@ -138,6 +140,7 @@ int main()
 
 
     while (wait(NULL) != -1) {}
+    exit(0);
 }
 
 
@@ -147,10 +150,6 @@ static void semafor_v(int semafor_id, int numer_semafora)
 	bufor_sem.sem_num = numer_semafora;
 	bufor_sem.sem_op = 1;
 	bufor_sem.sem_flg = 0;
-
-	// printf("V: PID=%d, sem[%d] przed: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-    // semop(semafor_id, &bufor_sem, 1);
-    // printf("V: PID=%d, sem[%d] po: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
 
     while (semop(semafor_id, &bufor_sem, 1) == -1)
 	{
@@ -171,10 +170,6 @@ static void semafor_p(int semafor_id, int numer_semafora)
 	bufor_sem.sem_op = -1;
 	bufor_sem.sem_flg = 0;
 
-    // printf("P: PID=%d, sem[%d] przed: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-    // semop(semafor_id, &bufor_sem, 1);
-    // printf("P: PID=%d, sem[%d] po: %d\n", getpid(), numer_semafora, semctl(semafor_id, numer_semafora, GETVAL));
-
 	while (semop(semafor_id, &bufor_sem, 1) == -1)
 	{
 		if (errno == EINTR)
@@ -185,4 +180,15 @@ static void semafor_p(int semafor_id, int numer_semafora)
 			exit(EXIT_FAILURE);
 		}
 	}
+}
+
+void signal_handler(int sig)
+{
+    if (sig == SIGINT)
+    {
+        printf("YO YO YO proces macierzysty here: %d\n", getpid());
+        while (wait(NULL) != -1) {}
+
+        exit(0);
+    }
 }
