@@ -18,6 +18,7 @@ struct dane_klienta
     double pieniadze;
     bool wpuszczony;
     bool VIP;
+    int godz_wyjscia;
 };
 
 struct komunikat

@@ -14,6 +14,13 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Kompilacja programu ratownik
+gcc -o ratownik ratownik.c
+if [ $? -ne 0 ]; then
+    echo "Błąd kompilacji ratownik.c"
+    exit 1
+fi
+
 # Kompilacja programu symulacja z użyciem pthread
 gcc -pthread -o symulacja symulacja.c
 if [ $? -ne 0 ]; then

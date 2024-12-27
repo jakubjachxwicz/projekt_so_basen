@@ -16,7 +16,7 @@ void *czasomierz();
 void czyszczenie();
 void signal_handler(int sig);
 
-pid_t pid_klienci, pid_kasjer;
+pid_t pid_klienci, pid_kasjer, pid_ratownicy;
 pthread_t t_czasomierz;
 int shm_id, shm_czas_id, semafor, msq_kolejka_vip;
 
@@ -138,9 +138,23 @@ int main()
             execl("./kasjer", "kasjer", NULL);
             exit(0);
         }
+        else
+        {
+            pid_ratownicy = fork();
+            if (pid_ratownicy < 0)
+            {
+                perror("fork error - proces ratownikow");
+                exit(EXIT_FAILURE);
+            }
+            else if (pid_ratownicy == 0)
+            {
+                execl("./ratownik", "ratownik", NULL);
+                exit(0);
+            }
+        }
     }
 
-    printf("Kasjer PID: %d, klienci PID: %d\n\n", pid_kasjer, pid_klienci);
+    printf("Klienci PID: %d, kasjer PID: %d, ratownicy PID: %d\n\n", pid_klienci, pid_kasjer, pid_ratownicy);
 
     czyszczenie();
 
@@ -167,14 +181,21 @@ void czyszczenie()
     int status;
     pid_t finished;
     finished = waitpid(pid_klienci, &status, 0);
-    if (finished == -1) perror("wait");  
+    if (finished == -1) perror("wait - klienci");  
     else if (WIFEXITED(status)) 
         printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
     else
         printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
     finished = waitpid(pid_kasjer, &status, 0);
-    if (finished == -1) perror("wait");  
+    if (finished == -1) perror("wait - kasjer");  
+    else if (WIFEXITED(status)) 
+        printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
+    else
+        printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
+
+    finished = waitpid(pid_ratownicy, &status, 0);
+    if (finished == -1) perror("wait - ratownicy");  
     else if (WIFEXITED(status)) 
         printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
     else
