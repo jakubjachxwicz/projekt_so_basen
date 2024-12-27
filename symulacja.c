@@ -1,12 +1,6 @@
 #include "header.h"
 #include "utils.c"
 
-// Ile mikrosekund irl trwa jedna sekunda w symulacji
-// 5000 - 3 min 36 s + 7 s
-// 2500 - 1 min 48 s + 7 s
-// 1250 - 54 s + 7 s
-// 1667 - 1 min 12 s + 7 s
-#define SEKUNDA 5000
 // Adres zmiennej przechowujacej czas
 char* shm_czas_adres;
 
@@ -18,7 +12,7 @@ void signal_handler(int sig);
 
 pid_t pid_klienci, pid_kasjer, pid_ratownicy;
 pthread_t t_czasomierz;
-int shm_id, shm_czas_id, semafor, msq_kolejka_vip;
+int shm_id, shm_czas_id, semafor, msq_kolejka_vip, msq_klient_ratownik;
 
 
 int main()
@@ -81,7 +75,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    // Inicjowanie kolejki komunikatow do wymiany klient VIP/kasjer
+    // Inicjowanie kolejek komunikatow
     msq_kolejka_vip = msgget(key, IPC_CREAT | 0600);
     if (msq_kolejka_vip == -1)
     {
@@ -89,7 +83,14 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    // Inicjowanie pam. wspoldzielonej do wymiany klient/kasjer
+    msq_klient_ratownik = msgget(key_czas, IPC_CREAT | 0600);
+    if (msq_klient_ratownik == -1)
+    {
+        perror("msgget - tworzenie kolejki kom. do wymiany klient/ratownik");
+        exit(EXIT_FAILURE);
+    }
+
+    // Inicjowanie pam. wspoldzielonej do wymiany kasjer/klient/ratownik
     shm_id = shmget(key, sizeof(struct dane_klienta), 0600|IPC_CREAT);
     if (shm_id == -1)
     {
@@ -223,6 +224,11 @@ void czyszczenie()
     if (msgctl(msq_kolejka_vip, IPC_RMID, 0) == -1)
     {
         perror("msgctl - problem przy usuwaniu kolejki kom. do obslugi klient VIP/kasjer");
+        exit(EXIT_FAILURE);
+    }
+    if (msgctl(msq_klient_ratownik, IPC_RMID, 0) == -1)
+    {
+        perror("msgctl - problem przy usuwaniu kolejki kom. do obslugi klient/ratownik");
         exit(EXIT_FAILURE);
     }
 }

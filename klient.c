@@ -52,8 +52,8 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    char* shm_adres = (char*)shmat(shm_id, NULL, 0);
-    if (shm_adres == (char*)(-1))
+    struct dane_klienta* shm_adres = (struct dane_klienta*)shmat(shm_id, NULL, 0);
+    if (shm_adres == (struct dane_klienta*)(-1))
     {
         perror("shmat - problem z dolaczeniem pamieci");
         exit(EXIT_FAILURE);
@@ -80,14 +80,18 @@ int main()
         perror("msgget - dostep do kolejki kom. do obslugi klient VIP/kasjer");
         exit(EXIT_FAILURE);
     }
+    int msq_klient_ratownik = msgget(key_czas, 0600);
+    if (msq_klient_ratownik == -1)
+    {
+        perror("msgget - dostep do kolejki kom. do obslugi klient/ratownik");
+        exit(EXIT_FAILURE);
+    }
 
     pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL);
 
     // Tworzenie klientow
     while (*((int*)(shm_czas_adres)) < (43200 - 3600))
-    {
-        sleep((rand() % 6) + 2);
-        
+    {        
         pid_t pid = fork();
         if (pid < 0)
         {
@@ -108,7 +112,7 @@ int main()
             if (klient.VIP)
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
-                printf("[%s VIP PID = %d] podchodzi do kasy\n", godzina, getpid());
+                printf("[%s VIP PID = %d, wiek: %d] podchodzi do kasy\n", godzina, getpid(), klient.wiek);
                 
                 struct komunikat kom;
                 kom.mtype = KOM_KASJER;
@@ -128,13 +132,16 @@ int main()
                 }
 
                 if (strcmp(kom.mtext, "zapraszam") == 0)
+                {
                     klient.wpuszczony = true;
+                    klient.godz_wyjscia = (*((int *)shm_czas_adres)) + 3600;
+                }
                 else
                     klient.wpuszczony = false;
             } else
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
-                printf("[%s KLIENT PID = %d] w kolejce na basen\n", godzina, getpid());
+                printf("[%s KLIENT PID = %d, wiek: %d] w kolejce na basen\n", godzina, getpid(), klient.wiek);
 
                 semafor_p(semafor, 1);
                 memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
@@ -149,7 +156,47 @@ int main()
             if (klient.wpuszczony)
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
-                printf("[%s KLIENT PID = %d] wchodze na basenik\n", godzina, getpid());
+                printf("[%s KLIENT PID = %d] wchodze do szatni\n", godzina, klient.PID);
+
+                
+                int ktory_basen = 0;
+                struct komunikat kom;
+                kom.ktype = klient.PID;
+                snprintf(kom.mtext, 3, "%02d", klient.wiek);
+                while (true)
+                {
+                    if (*((int *)shm_czas_adres) > klient.godz_wyjscia)
+                    {
+                        godz_sym(*((int *)shm_czas_adres), godzina);
+                        printf("[%s KLIENT PID = %d] pora wyjscia\n", godzina, klient.PID);
+                        break;
+                    }
+
+                    if (!ktory_basen)
+                    {
+                        if (klient.wiek <= 5)
+                        {
+                            kom.mtype = KOM_RATOWNIK_3;
+                            if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
+                            {
+                                perror("msgsnd - wysylanie komunikatu do wejscia do brodzika");
+                                exit(EXIT_FAILURE);
+                            }
+                            if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), kom.ktype, 0) == -1)
+                            {
+                                perror("msgrcv - odbieranie komunikatu do wejscia do brodzika");
+                                exit(EXIT_FAILURE);
+                            }
+
+                            if (strcmp(kom.mtext, "ok") == 0)
+                            {
+                                ktory_basen = 3;
+                                godz_sym(*((int *)shm_czas_adres), godzina);
+                                printf("[%s KLIENT PID = %d] wchodze do brodzika\n", godzina, klient.PID);
+                            }
+                        }
+                    }
+                }
             } else
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
@@ -164,6 +211,8 @@ int main()
 
             exit(0);
         }
+
+        sleep((rand() % 6) + 2);
     }
 
 

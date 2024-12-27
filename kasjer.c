@@ -8,7 +8,8 @@ void odlacz_pamiec();
 void signal_handler(int sig);
 void* klienci_vip();
 
-char *shm_adres, *shm_czas_adres;
+char *shm_czas_adres;
+struct dane_klienta *shm_adres;
 pthread_t t_klienci_vip;
 bool flag_obsluga_vip;
 key_t key;
@@ -50,8 +51,8 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    shm_adres = (char*)shmat(shm_id, NULL, 0);
-    if (shm_adres == (char*)(-1))
+    shm_adres = (struct dane_klienta*)shmat(shm_id, NULL, 0);
+    if (shm_adres == (struct dane_klienta*)(-1))
     {
         perror("shmat - problem z dolaczeniem pamieci");
         exit(EXIT_FAILURE);
@@ -80,16 +81,18 @@ int main()
 		semafor_p(semafor, 2);
         // Procesowanie klienta
 		memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
-		sleep(3);
+		usleep(SEKUNDA * 60);
 
 		if ((klient.wiek > 18 || klient.wiek < 10) && klient.pieniadze >= 60)
 		{
 			klient.pieniadze -= 60;
 			klient.wpuszczony = true;
+			klient.godz_wyjscia = (*((int *)shm_czas_adres)) + 3600;
 		} else if (klient.pieniadze >= 30)
 		{
 			klient.pieniadze -= 30;
 			klient.wpuszczony = true;
+			klient.godz_wyjscia = (*((int *)shm_czas_adres)) + 3600;
 		} else
 			klient.wpuszczony = false;
 
@@ -110,6 +113,11 @@ int main()
 void odlacz_pamiec()
 {
 	if (shmdt(shm_adres) == -1)
+	{
+		perror("KASJER: shmdt - problem z odlaczeniem pamieci od procesu");
+        exit(EXIT_FAILURE);
+	}
+	if (shmdt(shm_czas_adres) == -1)
 	{
 		perror("KASJER: shmdt - problem z odlaczeniem pamieci od procesu");
         exit(EXIT_FAILURE);
