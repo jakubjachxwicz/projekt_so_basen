@@ -3,13 +3,16 @@
 
 
 pid_t pid_macierzysty, pid_ratownik1, pid_ratownik2, pid_ratownik3;
+char godzina[9];
+char* shm_czas_adres;
 pthread_mutex_t mutex_olimp, mutex_rek, mutex_brod;
-pthread_t t_wpuszczanie_klientow;
+pthread_t t_wpuszczanie_klientow, t_wychodzenie_klientow;
 struct komunikat kom;
 int msq_klient_ratownik;
 volatile bool flag_obsluga_klientow;
 
 void* wpuszczanie_klientow_brodzik(void *arg);
+void* wychodzenie_klientow_brodzik(void *arg);
 void signal_handler(int sig);
 
 int main()
@@ -18,7 +21,6 @@ int main()
     pid_macierzysty = getpid();
     
     flag_obsluga_klientow = true;
-	char godzina[9];
     
     key_t key_czas = ftok(".", 52);
     if (key_czas == -1)
@@ -42,7 +44,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    char* shm_czas_adres = (char*)shmat(shm_czas_id, NULL, 0);
+    shm_czas_adres = (char*)shmat(shm_czas_id, NULL, 0);
     if (shm_czas_adres == (char*)(-1))
     {
         perror("shmat - problem z dolaczeniem pamieci do obslugi czasu");
@@ -90,12 +92,21 @@ int main()
                     klienci[i] = -1;    
 
                 pthread_mutex_init(&mutex_brod, NULL);
+
                 if (pthread_create(&t_wpuszczanie_klientow, NULL, &wpuszczanie_klientow_brodzik, klienci) != 0)
                 {
                     perror("pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
                     exit(EXIT_FAILURE);
                 }
+                if (pthread_create(&t_wychodzenie_klientow, NULL, &wychodzenie_klientow_brodzik, klienci) != 0)
+                {
+                    perror("pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
+                    exit(EXIT_FAILURE);
+                }
+
+
                 pthread_join(t_wpuszczanie_klientow, NULL);
+                pthread_join(t_wychodzenie_klientow, NULL);
                 pthread_mutex_destroy(&mutex_brod);
             }
         }
@@ -117,8 +128,6 @@ int main()
 
 void signal_handler(int sig)
 {
-    printf("Hi mum from %d\n", getpid());
-
     flag_obsluga_klientow = false;
 
     if (getpid() == pid_macierzysty)
@@ -129,10 +138,12 @@ void signal_handler(int sig)
     }
 
     pthread_cancel(t_wpuszczanie_klientow);
+    pthread_cancel(t_wychodzenie_klientow);
 }
 
 void* wpuszczanie_klientow_brodzik(void *arg)
 {
+    int *klienci = (int *)arg;
     int wiek;
     kom.ktype = KOM_RATOWNIK_3;
     kom.mtype = KOM_RATOWNIK_3;
@@ -152,7 +163,6 @@ void* wpuszczanie_klientow_brodzik(void *arg)
         strcpy(kom.mtext, "ok");
         kom.mtype = kom.ktype;
 
-        int *klienci = (int *)arg;
 
         pthread_mutex_lock(&mutex_brod);
         if (wiek > 5)
@@ -176,6 +186,42 @@ void* wpuszczanie_klientow_brodzik(void *arg)
             perror("msgsnd - ratownik 3: wysylanie komunikatu do wejscia do brodzika");
             exit(EXIT_FAILURE);
         }
+    }
+
+    return NULL;
+}
+
+void* wychodzenie_klientow_brodzik(void *arg)
+{
+    while (flag_obsluga_klientow)
+    {
+        int *klienci = (int *)arg;
+        int pid;
+
+        int fd = open("fifo_basen_3", O_RDONLY);
+        if (fd == -1)
+        {
+            perror("open - nie mozna otworzyc FIFO (ratownik przy brodziku)");
+            exit(EXIT_FAILURE);
+        }
+
+        if (read(fd, &pid, sizeof(pid)) == -1)
+        {
+            perror("read - nie mozna odczytac FIFO (ratownik przy brodziku)");
+            exit(EXIT_FAILURE);
+        }
+
+        godz_sym(*((int *)shm_czas_adres), godzina);
+        //printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
+        pthread_mutex_lock(&mutex_brod);
+        klienci[0]--;
+        usun_z_tablicy(klienci, X3, pid);
+
+        printf("*****   W brodziku:   *****\n");
+        for (int i = 1; i <= X3; i++)
+            printf("%d, ", klienci[i]);
+        printf("\n***************************\n");
+        pthread_mutex_unlock(&mutex_brod);
     }
 
     return NULL;

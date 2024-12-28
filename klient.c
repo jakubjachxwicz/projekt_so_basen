@@ -172,6 +172,30 @@ int main(int argc, char *argv[])
                     {
                         godz_sym(*((int *)shm_czas_adres), godzina);
                         printf("[%s KLIENT PID = %d] pora wyjscia\n", godzina, klient.PID);
+
+                        if (ktory_basen)
+                        {
+                            char file_name[13];
+                            strcpy(file_name, "fifo_basen_");
+                            sprintf(file_name + strlen(file_name), "%d", ktory_basen);
+
+                            int fd = open(file_name, O_WRONLY);
+                            if (fd < 0)
+                            {
+                                perror("open - nie mozna otworzyc FIFO (klient)");
+                                exit(EXIT_FAILURE);
+                            }
+
+                            pid_t pid = klient.PID;
+                            if (write(fd, &pid, sizeof(pid)) == -1)
+                            {
+                                perror("write - pisanie do FIFO (klient)");
+                                exit(EXIT_FAILURE);
+                            }
+
+                            close(fd);
+                        }
+
                         break;
                     }
 

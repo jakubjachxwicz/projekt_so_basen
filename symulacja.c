@@ -116,17 +116,15 @@ int main()
     *shm_czas_adres = 0;
     pthread_create(&t_czasomierz, NULL, &czasomierz, NULL);
 
-
-    // pid_klienci = fork();
-    // if (pid_klienci < 0)
-    // {
-    //     perror("fork error - proces klientow");
-    //     exit(EXIT_FAILURE);
-    // } else if (pid_klienci == 0)
-    // {
-    //     execl("./klient", "klient", NULL);
-    //     exit(0);
-    // }
+    if (mkfifo("fifo_basen_1", 0600) == -1 || mkfifo("fifo_basen_2", 0600) == -1 || mkfifo("fifo_basen_3", 0600) == -1)
+    {
+        if (errno != EEXIST)
+        {
+            perror("mkfifo - nie mozna utworzyc FIFO");
+            exit(EXIT_FAILURE);
+        }
+    }
+    
     pid_ratownicy = fork();
     if (pid_ratownicy < 0)
     {

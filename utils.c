@@ -13,6 +13,8 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <sys/msg.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 
 void godz_sym(int sekundy, char* res)
@@ -70,6 +72,18 @@ void dodaj_do_tablicy(int* tab, int roz, int pid)
 		if (tab[i] == -1)
 		{
 			tab[i] = pid;
+			return;
+		}
+	}
+}
+
+void usun_z_tablicy(int* tab, int roz, int pid)
+{
+	for (int i = 1; i <= roz; i++)
+	{
+		if (tab[i] == pid)
+		{
+			tab[i] = -1;
 			return;
 		}
 	}
