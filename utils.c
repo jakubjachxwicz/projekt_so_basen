@@ -62,3 +62,15 @@ static void semafor_p(int semafor_id, int numer_semafora)
 		}
 	}
 }
+
+void dodaj_do_tablicy(int* tab, int roz, int pid)
+{
+	for (int i = 1; i <= roz; i++)
+	{
+		if (tab[i] == -1)
+		{
+			tab[i] = pid;
+			return;
+		}
+	}
+}

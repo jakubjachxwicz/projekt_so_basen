@@ -2,16 +2,21 @@
 #include "header.h"
 
 
-pid_t pid_ratownik1, pid_ratownik2, pid_ratownik3;
+pid_t pid_macierzysty, pid_ratownik1, pid_ratownik2, pid_ratownik3;
+pthread_mutex_t mutex_olimp, mutex_rek, mutex_brod;
+pthread_t t_wpuszczanie_klientow;
 struct komunikat kom;
 int msq_klient_ratownik;
 volatile bool flag_obsluga_klientow;
 
-void* obsluga_klientow(void *arg);
-void thread_signal_handler(int sig);
+void* wpuszczanie_klientow_brodzik(void *arg);
+void signal_handler(int sig);
 
 int main()
 {
+    signal(SIGINT, signal_handler);
+    pid_macierzysty = getpid();
+    
     flag_obsluga_klientow = true;
 	char godzina[9];
     
@@ -44,7 +49,6 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    pthread_t t_obsluga_klientow;
     
     pid_ratownik1 = fork();
     if (pid_ratownik1 < 0)
@@ -80,21 +84,19 @@ int main()
                 // Kod ratownika 3 - brodzik
                 printf("[RATOWNIK 3 PID = %d]\n", getpid());
 
-                int nr_basenu = 3;
-                pthread_create(&t_obsluga_klientow, NULL, &obsluga_klientow, &nr_basenu);
+                int klienci[X3 + 1];
+                klienci[0] = 0;
+                for (int i = 1; i <= X3; i++)
+                    klienci[i] = -1;    
 
-                while (*((int*)(shm_czas_adres)) < 43200)
+                pthread_mutex_init(&mutex_brod, NULL);
+                if (pthread_create(&t_wpuszczanie_klientow, NULL, &wpuszczanie_klientow_brodzik, klienci) != 0)
                 {
-                    usleep(SEKUNDA * 60);
-                }
-
-                if (pthread_kill(t_obsluga_klientow, SIGUSR1) != 0)
-                {
-                    perror("pthread_kill - nie udalo sie zakonczyc procesu obslugi klienta przez ratownika");
+                    perror("pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
                     exit(EXIT_FAILURE);
                 }
-
-                pthread_join(t_obsluga_klientow, NULL);
+                pthread_join(t_wpuszczanie_klientow, NULL);
+                pthread_mutex_destroy(&mutex_brod);
             }
         }
     }
@@ -113,40 +115,68 @@ int main()
     exit(0);
 }
 
-void* obsluga_klientow(void *arg)
+void signal_handler(int sig)
 {
-    signal(SIGUSR1, thread_signal_handler);
-    
+    printf("Hi mum from %d\n", getpid());
+
+    flag_obsluga_klientow = false;
+
+    if (getpid() == pid_macierzysty)
+    {
+        kill(pid_ratownik1, SIGINT);
+        kill(pid_ratownik2, SIGINT);
+        kill(pid_ratownik3, SIGINT);
+    }
+
+    pthread_cancel(t_wpuszczanie_klientow);
+}
+
+void* wpuszczanie_klientow_brodzik(void *arg)
+{
     int wiek;
+    kom.ktype = KOM_RATOWNIK_3;
+    kom.mtype = KOM_RATOWNIK_3;
     while (flag_obsluga_klientow)
     {
         if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), KOM_RATOWNIK_3, 0) == -1)
         {
             if (errno != EINTR)
             {
-                perror("msgrcv - ratownik: odbieranie komunikatu do wejscia do brodzika");
+                perror("msgrcv - ratownik 3: odbieranie komunikatu do wejscia do brodzika");
                 exit(EXIT_FAILURE);
-            }
+            } else printf("dupa\n");
         }
 
         // Sprawdzanie czy moze wejsc
         wiek = atoi(kom.mtext);
         strcpy(kom.mtext, "ok");
         kom.mtype = kom.ktype;
+
+        int *klienci = (int *)arg;
+
+        pthread_mutex_lock(&mutex_brod);
         if (wiek > 5)
             strcpy(kom.mtext, "wiek za duzy");
+        else if (klienci[0] == X3)
+            strcpy(kom.mtext, "brodzik pelny");
+        else
+        {
+            klienci[0]++;
+            dodaj_do_tablicy(klienci, X3, kom.ktype);
+
+            printf("*****   W brodziku:   *****\n");
+            for (int i = 1; i <= X3; i++)
+                printf("%d, ", klienci[i]);
+            printf("\n***************************\n");
+        }
+        pthread_mutex_unlock(&mutex_brod);
 
         if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
         {
-            perror("msgsnd - wysylanie komunikatu do wejscia do brodzika");
+            perror("msgsnd - ratownik 3: wysylanie komunikatu do wejscia do brodzika");
             exit(EXIT_FAILURE);
         }
     }
 
     return NULL;
-}
-
-void thread_signal_handler(int sig)
-{
-    flag_obsluga_klientow = false;
 }

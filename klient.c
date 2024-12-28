@@ -8,16 +8,19 @@ static void semafor_p(int semafor_id, int numer_semafora);
 void signal_handler(int sig);
 void *usuwanie_procesow();
 
-pid_t pid_macierzysty;
 pthread_t t_usuwanie_procesow;
 
 volatile bool flag_usuwanie;
 
 
-int main()
+int main(int argc, char *argv[])
 {
     signal(SIGINT, signal_handler);
-    pid_macierzysty = getpid();
+
+    pid_t pid_ratownicy = atoi(argv[1]);
+    pid_t pid_kasjer = atoi(argv[2]);
+
+    printf("Ja: %d, kasjer: %d, ratownicy: %d\n", getpid(), pid_kasjer, pid_ratownicy);
 
     char godzina[9];
     flag_usuwanie = true;
@@ -219,6 +222,10 @@ int main()
     while (wait(NULL) != -1) {}
     flag_usuwanie = false;
     pthread_join(t_usuwanie_procesow, NULL);
+
+    kill(pid_ratownicy, SIGINT);
+    kill(pid_kasjer, SIGINT);
+
     exit(0);
 }
 

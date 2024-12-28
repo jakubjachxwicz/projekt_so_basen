@@ -117,14 +117,24 @@ int main()
     pthread_create(&t_czasomierz, NULL, &czasomierz, NULL);
 
 
-    pid_klienci = fork();
-    if (pid_klienci < 0)
+    // pid_klienci = fork();
+    // if (pid_klienci < 0)
+    // {
+    //     perror("fork error - proces klientow");
+    //     exit(EXIT_FAILURE);
+    // } else if (pid_klienci == 0)
+    // {
+    //     execl("./klient", "klient", NULL);
+    //     exit(0);
+    // }
+    pid_ratownicy = fork();
+    if (pid_ratownicy < 0)
     {
-        perror("fork error - proces klientow");
+        perror("fork error - proces ratownikow");
         exit(EXIT_FAILURE);
-    } else if (pid_klienci == 0)
+    } else if (pid_ratownicy == 0)
     {
-        execl("./klient", "klient", NULL);
+        execl("./ratownik", "ratownik", NULL);
         exit(0);
     }
     else
@@ -141,15 +151,20 @@ int main()
         }
         else
         {
-            pid_ratownicy = fork();
-            if (pid_ratownicy < 0)
+            pid_klienci = fork();
+            if (pid_klienci < 0)
             {
-                perror("fork error - proces ratownikow");
+                perror("fork error - proces klientow");
                 exit(EXIT_FAILURE);
             }
-            else if (pid_ratownicy == 0)
+            else if (pid_klienci == 0)
             {
-                execl("./ratownik", "ratownik", NULL);
+                char pid_ratownicy_str[10];
+                sprintf(pid_ratownicy_str, "%d", pid_ratownicy);
+                char pid_kasjer_str[10];
+                sprintf(pid_kasjer_str, "%d", pid_kasjer);
+
+                execl("./klient", "klient", pid_ratownicy_str, pid_kasjer_str, NULL);
                 exit(0);
             }
         }
@@ -172,7 +187,7 @@ void *czasomierz()
         (*jaki_czas)++;
     }
 
-    kill(pid_kasjer, SIGINT);
+    // kill(pid_kasjer, SIGINT);
     return 0;
 }
 
