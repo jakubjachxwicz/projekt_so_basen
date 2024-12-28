@@ -11,7 +11,7 @@ void *usuwanie_procesow();
 pid_t pid_macierzysty;
 pthread_t t_usuwanie_procesow;
 
-bool flag_usuwanie;
+volatile bool flag_usuwanie;
 
 
 int main()

@@ -4,7 +4,7 @@
 // Adres zmiennej przechowujacej czas
 char* shm_czas_adres;
 
-bool stop_time;
+volatile bool stop_time;
 
 void *czasomierz();
 void czyszczenie();
