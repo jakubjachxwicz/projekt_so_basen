@@ -15,7 +15,7 @@
 // 2500 - 1 min 48 s + 7 s
 // 1250 - 54 s + 7 s
 // 1667 - 1 min 12 s + 7 s
-#define SEKUNDA 2500
+#define SEKUNDA 10000
 
 #define X1 6
 #define X2 16
