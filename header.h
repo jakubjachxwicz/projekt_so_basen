@@ -40,4 +40,6 @@ struct komunikat
     long mtype;
     pid_t ktype;
     char mtext[MTEXT_MAX];
+    int wiek;
+    int wiek_opiekuna;
 };

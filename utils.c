@@ -88,3 +88,15 @@ void usun_z_tablicy(int* tab, int roz, int pid)
 		}
 	}
 }
+
+int ile_osob(int* tab, int roz, int pid)
+{
+	int ile = 0;
+	for (int i = 1; i <= roz; i++)
+	{
+		if (tab[i] == pid)
+			ile++;
+	}
+
+	return ile;
+}
