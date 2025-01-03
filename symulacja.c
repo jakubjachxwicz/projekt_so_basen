@@ -37,14 +37,14 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 6, 0660|IPC_CREAT);
+    semafor = semget(key, 4, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie utworzyc semafora");
 		exit(EXIT_FAILURE);
 	}
 
-    if (semctl(semafor, 0, SETVAL, 6) == -1)
+    if (semctl(semafor, 0, SETVAL, 1) == -1)
     {
         perror("semctl - nie mozna ustawic semafora");
         exit(EXIT_FAILURE);
@@ -60,16 +60,6 @@ int main()
         exit(EXIT_FAILURE);
     }
     if (semctl(semafor, 3, SETVAL, 0) == -1)
-    {
-        perror("semctl - nie mozna ustawic semafora");
-        exit(EXIT_FAILURE);
-    }
-    if (semctl(semafor, 4, SETVAL, 16) == -1)
-    {
-        perror("semctl - nie mozna ustawic semafora");
-        exit(EXIT_FAILURE);
-    }
-    if (semctl(semafor, 5, SETVAL, 5) == -1)
     {
         perror("semctl - nie mozna ustawic semafora");
         exit(EXIT_FAILURE);

@@ -105,7 +105,8 @@ int main(int argc, char *argv[])
             // Kod dzialania klienta
             struct dane_klienta klient;
             klient.PID = getpid();
-            klient.wiek = (rand() % 70) + 1;
+            // klient.wiek = (rand() % 70) + 1;
+            klient.wiek = (rand() % 15) + 1;
             klient.wiek_opiekuna = (klient.wiek < 10) ? ((rand() % 53) + 18) : 0;
             klient.pampers = (klient.wiek <= 3) ? true : false;
             klient.czepek = rand() % 2;
@@ -160,12 +161,14 @@ int main(int argc, char *argv[])
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 printf("[%s KLIENT PID = %d] wchodze do szatni\n", godzina, klient.PID);
-
                 
                 int ktory_basen = 0;
                 struct komunikat kom;
                 kom.ktype = klient.PID;
                 snprintf(kom.mtext, 3, "%02d", klient.wiek);
+
+                int fd;
+
                 while (true)
                 {
                     if (*((int *)shm_czas_adres) > klient.godz_wyjscia)
@@ -178,13 +181,14 @@ int main(int argc, char *argv[])
                             char file_name[13];
                             strcpy(file_name, "fifo_basen_");
                             sprintf(file_name + strlen(file_name), "%d", ktory_basen);
-
-                            int fd = open(file_name, O_WRONLY);
+                            semafor_p(semafor, 0);
+                            fd = open(file_name, O_WRONLY);
                             if (fd < 0)
                             {
                                 perror("open - nie mozna otworzyc FIFO (klient)");
                                 exit(EXIT_FAILURE);
                             }
+
 
                             pid_t pid = klient.PID;
                             if (write(fd, &pid, sizeof(pid)) == -1)
@@ -192,8 +196,9 @@ int main(int argc, char *argv[])
                                 perror("write - pisanie do FIFO (klient)");
                                 exit(EXIT_FAILURE);
                             }
-
+                            printf("PID = %d, dalim znac o wyjsciu z baseniku nr %d\n", getpid(), ktory_basen);
                             close(fd);
+                            semafor_v(semafor, 0);
                         }
 
                         break;

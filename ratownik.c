@@ -8,7 +8,7 @@ char* shm_czas_adres;
 pthread_mutex_t mutex_olimp, mutex_rek, mutex_brod;
 pthread_t t_wpuszczanie_klientow, t_wychodzenie_klientow;
 struct komunikat kom;
-int msq_klient_ratownik;
+int msq_klient_ratownik, fifo_fd;
 volatile bool flag_obsluga_klientow;
 
 void* wpuszczanie_klientow_brodzik(void *arg);
@@ -98,12 +98,14 @@ int main()
                     perror("pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
                     exit(EXIT_FAILURE);
                 }
+
+                printf("halo kochani tworzymy watki AUUUUUUUUU\n");
+
                 if (pthread_create(&t_wychodzenie_klientow, NULL, &wychodzenie_klientow_brodzik, klienci) != 0)
                 {
                     perror("pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
                     exit(EXIT_FAILURE);
                 }
-
 
                 pthread_join(t_wpuszczanie_klientow, NULL);
                 pthread_join(t_wychodzenie_klientow, NULL);
@@ -155,7 +157,7 @@ void* wpuszczanie_klientow_brodzik(void *arg)
             {
                 perror("msgrcv - ratownik 3: odbieranie komunikatu do wejscia do brodzika");
                 exit(EXIT_FAILURE);
-            } else printf("dupa\n");
+            }
         }
 
         // Sprawdzanie czy moze wejsc
@@ -193,27 +195,35 @@ void* wpuszczanie_klientow_brodzik(void *arg)
 
 void* wychodzenie_klientow_brodzik(void *arg)
 {
+    printf("WATEK WYPUSZCZANIA STARUJE\n");
+    
     while (flag_obsluga_klientow)
     {
         int *klienci = (int *)arg;
         int pid;
 
-        int fd = open("fifo_basen_3", O_RDONLY);
-        if (fd == -1)
+        printf("TU RATOWNIK, CZEKAM NA WYCHODZACYCH\n");
+
+        fifo_fd = open("fifo_basen_3", O_RDONLY);
+        if (fifo_fd == -1)
         {
             perror("open - nie mozna otworzyc FIFO (ratownik przy brodziku)");
             exit(EXIT_FAILURE);
         }
 
-        if (read(fd, &pid, sizeof(pid)) == -1)
+        if (read(fifo_fd, &pid, sizeof(pid)) == -1)
         {
             perror("read - nie mozna odczytac FIFO (ratownik przy brodziku)");
             exit(EXIT_FAILURE);
         }
 
-        godz_sym(*((int *)shm_czas_adres), godzina);
-        //printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
+        close(fifo_fd);
+
         pthread_mutex_lock(&mutex_brod);
+
+        godz_sym(*((int *)shm_czas_adres), godzina);
+        printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
+
         klienci[0]--;
         usun_z_tablicy(klienci, X3, pid);
 
@@ -222,7 +232,16 @@ void* wychodzenie_klientow_brodzik(void *arg)
             printf("%d, ", klienci[i]);
         printf("\n***************************\n");
         pthread_mutex_unlock(&mutex_brod);
+        printf("JAK NIE POPIERDOLI TO POJEBIE\n");
+
+        usleep(SEKUNDA * 5);
+
+        printf("NO POPIERDOLI MNIE CHYBA\n");
     }
+
+    printf("@@@@@@@@@@@@@@@@@@@@@@@\n");
+    printf("@@@@@@@@BYE BYE@@@@@@@@\n");
+    printf("@@@@@@@@@@@@@@@@@@@@@@@\n");
 
     return NULL;
 }
