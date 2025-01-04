@@ -69,9 +69,22 @@ void dodaj_do_tablicy(int* tab, int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
 	{
-		if (tab[i] == -1)
+		if (tab[i] <= 0)
 		{
 			tab[i] = pid;
+			return;
+		}
+	}
+}
+
+void dodaj_do_tablicy_X2(int** tab, int roz, int pid, int wiek)
+{
+	for (int i = 1; i <= roz; i++)
+	{
+		if (tab[0][i] <= 0)
+		{
+			tab[0][i] = pid;
+			tab[1][i] = wiek;
 			return;
 		}
 	}
@@ -83,7 +96,20 @@ void usun_z_tablicy(int* tab, int roz, int pid)
 	{
 		if (tab[i] == pid)
 		{
-			tab[i] = -1;
+			tab[i] = 0;
+			return;
+		}
+	}
+}
+
+void usun_z_tablicy_X2(int** tab, int roz, int pid)
+{
+	for (int i = 1; i <= roz; i++)
+	{
+		if (tab[0][i] == pid)
+		{
+			tab[0][i] = 0;
+			tab[1][i] = 0;
 			return;
 		}
 	}
@@ -99,4 +125,20 @@ int ile_osob(int* tab, int roz, int pid)
 	}
 
 	return ile;
+}
+
+double srednia_wieku(int* tab, int roz, int nowy)
+{
+	int n = 0, suma = 0;
+	for (int i = 1; i <= roz; i++)
+	{
+		if (tab[i] != 0)
+		{
+			suma += tab[i];
+			n++;
+		}
+	}
+
+	double sr = (double)(suma + nowy) / (double)(n + 1);
+	return sr;
 }

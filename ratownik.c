@@ -8,7 +8,7 @@ char* shm_czas_adres;
 pthread_mutex_t mutex_olimp, mutex_rek, mutex_brod;
 pthread_t t_wpuszczanie_klientow, t_wychodzenie_klientow;
 struct komunikat kom;
-int msq_klient_ratownik, fifo_fd, ktory_basen, suma_wieku = 0;
+int msq_klient_ratownik, fifo_fd, ktory_basen;
 volatile bool flag_obsluga_klientow;
 
 void* wpuszczanie_klientow_olimpijski(void *arg);
@@ -101,10 +101,15 @@ int main()
             printf("[RATOWNIK 2 PID = %d]\n", getpid());
             ktory_basen = 2;
 
-            int klienci[X2 + 1];
-            klienci[0] = 0;
-            for (int i = 1; i <= X2; i++)
-                klienci[i] = -1;    
+            // int klienci[X2 + 1];
+            // klienci[0] = 0;
+            // for (int i = 1; i <= X2; i++)
+            //     klienci[i] = -1;
+            int klienci[2][X2 + 1];
+            memset(klienci, 0, sizeof(klienci));
+            // for (int i = 0; i < 2; i++) 
+            //     for (int j = 1; j <= X2; j++)
+            //         klienci[i][j] = 0;   
 
             pthread_mutex_init(&mutex_rek, NULL);
 
@@ -243,8 +248,8 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
 
 void* wpuszczanie_klientow_rekreacyjny(void *arg)
 {
-    int *klienci = (int *)arg;
-    int wiek;
+    int (*klienci)[X2 + 1] = (int (*)[X2 + 1])arg;
+    int wiek, wiek_opiekuna;
     kom.ktype = KOM_RATOWNIK_2;
     kom.mtype = KOM_RATOWNIK_2;
     while (flag_obsluga_klientow)
@@ -260,15 +265,15 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
 
         // Sprawdzanie czy moze wejsc
         wiek = kom.wiek;
-        int suma_wieku_klient = wiek + kom.wiek_opiekuna;
+        wiek_opiekuna = kom.wiek_opiekuna;
         strcpy(kom.mtext, "ok");
         kom.mtype = kom.ktype;
         int ile_osob = (wiek < 10) ? 2 : 1;
 
         pthread_mutex_lock(&mutex_rek);
         // double sr = srednia_wieku(klienci, X2, wiek);
-        double sr = (double)(suma_wieku + suma_wieku_klient) / (double)(klienci[0] + 1);
-        if (klienci[0] + ile_osob > X2)
+        double sr = srednia_wieku(klienci[1], X2, wiek + wiek_opiekuna);
+        if (klienci[0][0] + ile_osob > X2)
             strcpy(kom.mtext, "basen pelny");
         else if (sr > 40)
         {
@@ -277,14 +282,18 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
         }
         else
         {
-            suma_wieku += suma_wieku_klient;
-            klienci[0] += ile_osob;
-            for (int j = 0; j < ile_osob; j++)
-                dodaj_do_tablicy(klienci, X2, kom.ktype);
+            klienci[0][0] += ile_osob;
+            // for (int j = 0; j < ile_osob; j++)
+            //     dodaj_do_tablicy(klienci[0], X2, kom.ktype);
+            dodaj_do_tablicy_X2(klienci, X2, kom.ktype, wiek);
+            if (wiek_opiekuna)
+                dodaj_do_tablicy_X2(klienci, X2, kom.ktype, wiek_opiekuna);
 
             printf("****   W rekreacyjnym:   ****\n");
             for (int i = 1; i <= X2; i++)
-                printf("%d, ", klienci[i]);
+                printf("%d, ", klienci[0][i]);
+            for (int i = 1; i <= X2; i++)
+                printf("%d, ", klienci[1][i]);
             printf("\n***************************\n");
         }
         pthread_mutex_unlock(&mutex_rek);
@@ -397,15 +406,19 @@ void* wychodzenie_klientow(void *arg)
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
 
-                int ile = ile_osob(klienci, X2, pid);
+                int (*klienci_x2)[X2 + 1] = (int (*)[X2 + 1])klienci;
+                int ile = ile_osob(klienci_x2[0], X2, pid);
 
-                klienci[0] -= ile;
+                klienci_x2[0][0] -= ile;
                 for (int j = 0; j < ile; j++)
-                    usun_z_tablicy(klienci, X2, pid);
+                    usun_z_tablicy_X2(klienci_x2, X2, pid);
 
                 printf("****   W rekreacyjnym:   ****\n");
                 for (int i = 1; i <= X2; i++)
-                    printf("%d, ", klienci[i]);
+                    printf("%d, ", klienci_x2[0][i]);
+                printf("\n***************************\n");
+                for (int i = 1; i <= X2; i++)
+                    printf("%d, ", klienci_x2[1][i]);
                 printf("\n***************************\n");
                 pthread_mutex_unlock(&mutex_rek);
                 break;

@@ -208,6 +208,7 @@ int main(int argc, char *argv[])
                     if (!ktory_basen)
                     {
                         choice = (rand() % 3) + 1;
+                        printf("TU %d, CHCE NA BASEN: %d\n", klient.PID, choice);
                         if (choice == 1)
                         {
                             kom.mtype = KOM_RATOWNIK_1;
@@ -273,7 +274,7 @@ int main(int argc, char *argv[])
                         }
                     }
 
-                    usleep(SEKUNDA * 45);
+                    usleep(SEKUNDA * 120);
                 }
             } else
             {
