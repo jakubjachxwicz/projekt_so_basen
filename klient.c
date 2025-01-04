@@ -16,6 +16,8 @@ volatile bool flag_usuwanie;
 int main(int argc, char *argv[])
 {
     signal(SIGINT, signal_handler);
+    signal(SIGUSR1, signal_handler);
+    signal(SIGUSR2, signal_handler);
 
     pid_t pid_ratownicy = atoi(argv[1]);
     pid_t pid_kasjer = atoi(argv[2]);
@@ -308,6 +310,12 @@ void signal_handler(int sig)
     {
         while (wait(NULL) != -1) {}
         exit(0);
+    } else if (sig == SIGUSR1)
+    {
+        printf("KLIENT PID = %d otrzymalem SIGUSR1\n", getpid());
+    } else if (sig == SIGUSR2)
+    {
+        printf("KLIENT PID = %d otrzymalem SIGUSR2\n", getpid());
     }
 }
 

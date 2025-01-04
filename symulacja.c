@@ -18,6 +18,7 @@ int shm_id, shm_czas_id, semafor, msq_kolejka_vip, msq_klient_ratownik;
 int main()
 {
     signal(SIGINT, signal_handler);
+    signal(SIGUSR1, signal_handler);
 
     stop_time = false;
     
@@ -244,5 +245,9 @@ void signal_handler(int sig)
         
         czyszczenie();
         exit(0);
+    }
+    else if (sig == SIGUSR1)
+    {
+        printf("elo tu symulacja, nie wiem jak do tego doszlo xddddd\n");
     }
 }
