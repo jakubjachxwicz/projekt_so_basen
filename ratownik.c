@@ -66,9 +66,7 @@ int main()
         ktory_basen = 1;
 
         int klienci[X1 + 1];
-        klienci[0] = 0;
-        for (int i = 1; i <= X1; i++)
-            klienci[i] = -1;    
+        memset(klienci, 0, sizeof(klienci));  
 
         pthread_mutex_init(&mutex_olimp, NULL);
 
@@ -101,15 +99,8 @@ int main()
             printf("[RATOWNIK 2 PID = %d]\n", getpid());
             ktory_basen = 2;
 
-            // int klienci[X2 + 1];
-            // klienci[0] = 0;
-            // for (int i = 1; i <= X2; i++)
-            //     klienci[i] = -1;
             int klienci[2][X2 + 1];
             memset(klienci, 0, sizeof(klienci));
-            // for (int i = 0; i < 2; i++) 
-            //     for (int j = 1; j <= X2; j++)
-            //         klienci[i][j] = 0;   
 
             pthread_mutex_init(&mutex_rek, NULL);
 
@@ -143,9 +134,7 @@ int main()
                 ktory_basen = 3;
 
                 int klienci[X3 + 1];
-                klienci[0] = 0;
-                for (int i = 1; i <= X3; i++)
-                    klienci[i] = -1;    
+                memset(klienci, 0, sizeof(klienci));
 
                 pthread_mutex_init(&mutex_brod, NULL);
 
@@ -231,8 +220,8 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
 
             printf("****   W olimpijskim:   ****\n");
             for (int i = 1; i <= X1; i++)
-                printf("%d, ", klienci[i]);
-            printf("\n***************************\n");
+                (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
+            printf("***************************\n");
         }
         pthread_mutex_unlock(&mutex_olimp);
 
@@ -271,30 +260,28 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
         int ile_osob = (wiek < 10) ? 2 : 1;
 
         pthread_mutex_lock(&mutex_rek);
-        // double sr = srednia_wieku(klienci, X2, wiek);
         double sr = srednia_wieku(klienci[1], X2, wiek + wiek_opiekuna);
         if (klienci[0][0] + ile_osob > X2)
+        {
             strcpy(kom.mtext, "basen pelny");
+        }
         else if (sr > 40)
         {
             strcpy(kom.mtext, "srednia wieku za wysoka");
-            printf("SREDNIA TO %lf\n", sr);
         }
         else
         {
             klienci[0][0] += ile_osob;
-            // for (int j = 0; j < ile_osob; j++)
-            //     dodaj_do_tablicy(klienci[0], X2, kom.ktype);
             dodaj_do_tablicy_X2(klienci, X2, kom.ktype, wiek);
             if (wiek_opiekuna)
                 dodaj_do_tablicy_X2(klienci, X2, kom.ktype, wiek_opiekuna);
 
             printf("****   W rekreacyjnym:   ****\n");
             for (int i = 1; i <= X2; i++)
-                printf("%d, ", klienci[0][i]);
+                (i < X2) ? printf("%d, ", klienci[0][i]) : printf("%d\n", klienci[0][i]);
             for (int i = 1; i <= X2; i++)
-                printf("%d, ", klienci[1][i]);
-            printf("\n***************************\n");
+                (i < X2) ? printf("%d, ", klienci[1][i]) : printf("%d\n", klienci[1][i]);
+            printf("***************************\n");
         }
         pthread_mutex_unlock(&mutex_rek);
 
@@ -342,8 +329,8 @@ void* wpuszczanie_klientow_brodzik(void *arg)
 
             printf("*****   W brodziku:   *****\n");
             for (int i = 1; i <= X3; i++)
-                printf("%d, ", klienci[i]);
-            printf("\n***************************\n");
+                (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
+            printf("***************************\n");
         }
         pthread_mutex_unlock(&mutex_brod);
 
@@ -396,8 +383,8 @@ void* wychodzenie_klientow(void *arg)
 
                 printf("****   W olimpijskim:   ****\n");
                 for (int i = 1; i <= X1; i++)
-                    printf("%d, ", klienci[i]);
-                printf("\n***************************\n");
+                    (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
+                printf("***************************\n");
                 pthread_mutex_unlock(&mutex_olimp);
                 break;
             case 2:
@@ -415,11 +402,10 @@ void* wychodzenie_klientow(void *arg)
 
                 printf("****   W rekreacyjnym:   ****\n");
                 for (int i = 1; i <= X2; i++)
-                    printf("%d, ", klienci_x2[0][i]);
-                printf("\n***************************\n");
+                    (i < X2) ? printf("%d, ", klienci_x2[0][i]) : printf("%d\n", klienci_x2[0][i]);
                 for (int i = 1; i <= X2; i++)
-                    printf("%d, ", klienci_x2[1][i]);
-                printf("\n***************************\n");
+                    (i < X2) ? printf("%d, ", klienci_x2[1][i]) : printf("%d\n", klienci_x2[1][i]);
+                printf("***************************\n");
                 pthread_mutex_unlock(&mutex_rek);
                 break;
             case 3:
@@ -433,8 +419,8 @@ void* wychodzenie_klientow(void *arg)
 
                 printf("*****   W brodziku:   *****\n");
                 for (int i = 1; i <= X3; i++)
-                    printf("%d, ", klienci[i]);
-                printf("\n***************************\n");
+                    (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
+                printf("***************************\n");
                 pthread_mutex_unlock(&mutex_brod);
                 break;
         }

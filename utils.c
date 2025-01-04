@@ -1,7 +1,6 @@
 #pragma once
 
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
 #include <errno.h>
@@ -15,6 +14,8 @@
 #include <sys/msg.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+
+#include "header.h"
 
 
 void godz_sym(int sekundy, char* res)
@@ -77,7 +78,7 @@ void dodaj_do_tablicy(int* tab, int roz, int pid)
 	}
 }
 
-void dodaj_do_tablicy_X2(int** tab, int roz, int pid, int wiek)
+void dodaj_do_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid, int wiek)
 {
 	for (int i = 1; i <= roz; i++)
 	{
@@ -102,7 +103,7 @@ void usun_z_tablicy(int* tab, int roz, int pid)
 	}
 }
 
-void usun_z_tablicy_X2(int** tab, int roz, int pid)
+void usun_z_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
 	{

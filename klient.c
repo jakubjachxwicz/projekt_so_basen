@@ -197,7 +197,6 @@ int main(int argc, char *argv[])
                                 perror("write - pisanie do FIFO (klient)");
                                 exit(EXIT_FAILURE);
                             }
-                            printf("PID = %d, dalim znac o wyjsciu z baseniku nr %d\n", getpid(), ktory_basen);
                             close(fd);
                             semafor_v(semafor, 0);
                         }
@@ -208,7 +207,7 @@ int main(int argc, char *argv[])
                     if (!ktory_basen)
                     {
                         choice = (rand() % 3) + 1;
-                        printf("TU %d, CHCE NA BASEN: %d\n", klient.PID, choice);
+                        printf("KLIENT PID = %d, CHCE WEJSC NA BASEN: %d\n", klient.PID, choice);
                         if (choice == 1)
                         {
                             kom.mtype = KOM_RATOWNIK_1;
@@ -242,8 +241,6 @@ int main(int argc, char *argv[])
                                 perror("msgrcv - odbieranie komunikatu do wejscia do basenu rekreacyjnego");
                                 exit(EXIT_FAILURE);
                             }
-
-                            printf("PID = %d, wiek = %d, CHCIALEM ISC DO 2 ALE: %s\n", klient.PID, klient.wiek, kom.mtext);
 
                             if (strcmp(kom.mtext, "ok") == 0)
                             {
