@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
             struct dane_klienta klient;
             klient.PID = getpid();
             // klient.wiek = (rand() % 70) + 1;
-            klient.wiek = (rand() % 15) + 1;
+            klient.wiek = (rand() % 70) + 1;
             klient.wiek_opiekuna = (klient.wiek < 10) ? ((rand() % 53) + 18) : 0;
             klient.pampers = (klient.wiek <= 3) ? true : false;
             klient.czepek = rand() % 2;
@@ -165,9 +165,10 @@ int main(int argc, char *argv[])
                 int ktory_basen = 0;
                 struct komunikat kom;
                 kom.ktype = klient.PID;
-                snprintf(kom.mtext, 3, "%02d", klient.wiek);
+                kom.wiek = klient.wiek;
+                kom.wiek_opiekuna = klient.wiek_opiekuna;
 
-                int fd;
+                int fd, choice = (rand() % 3) + 1;
 
                 while (true)
                 {
@@ -196,7 +197,6 @@ int main(int argc, char *argv[])
                                 perror("write - pisanie do FIFO (klient)");
                                 exit(EXIT_FAILURE);
                             }
-                            printf("PID = %d, dalim znac o wyjsciu z baseniku nr %d\n", getpid(), ktory_basen);
                             close(fd);
                             semafor_v(semafor, 0);
                         }
@@ -206,7 +206,49 @@ int main(int argc, char *argv[])
 
                     if (!ktory_basen)
                     {
-                        if (klient.wiek <= 5)
+                        choice = (rand() % 3) + 1;
+                        printf("KLIENT PID = %d, CHCE WEJSC NA BASEN: %d\n", klient.PID, choice);
+                        if (choice == 1)
+                        {
+                            kom.mtype = KOM_RATOWNIK_1;
+                            if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
+                            {
+                                perror("msgsnd - wysylanie komunikatu do wejscia do basenu olimpijskiego");
+                                exit(EXIT_FAILURE);
+                            }
+                            if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), kom.ktype, 0) == -1)
+                            {
+                                perror("msgrcv - odbieranie komunikatu do wejscia do basenu olimpijskiego");
+                                exit(EXIT_FAILURE);
+                            }
+
+                            if (strcmp(kom.mtext, "ok") == 0)
+                            {
+                                ktory_basen = 1;
+                                godz_sym(*((int *)shm_czas_adres), godzina);
+                                printf("[%s KLIENT PID = %d] wchodze do basenu olimpijskiego\n", godzina, klient.PID);
+                            }
+                        } else if (choice == 2)
+                        {
+                            kom.mtype = KOM_RATOWNIK_2;
+                            if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
+                            {
+                                perror("msgsnd - wysylanie komunikatu do wejscia do basenu rekreacyjnego");
+                                exit(EXIT_FAILURE);
+                            }
+                            if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), kom.ktype, 0) == -1)
+                            {
+                                perror("msgrcv - odbieranie komunikatu do wejscia do basenu rekreacyjnego");
+                                exit(EXIT_FAILURE);
+                            }
+
+                            if (strcmp(kom.mtext, "ok") == 0)
+                            {
+                                ktory_basen = 2;
+                                godz_sym(*((int *)shm_czas_adres), godzina);
+                                printf("[%s KLIENT PID = %d] wchodze do basenu rekreacyjnego\n", godzina, klient.PID);
+                            }
+                        } else if (choice == 3)
                         {
                             kom.mtype = KOM_RATOWNIK_3;
                             if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
@@ -228,6 +270,8 @@ int main(int argc, char *argv[])
                             }
                         }
                     }
+
+                    usleep(SEKUNDA * 120);
                 }
             } else
             {

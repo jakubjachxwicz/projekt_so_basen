@@ -15,7 +15,7 @@
 // 2500 - 1 min 48 s + 7 s
 // 1250 - 54 s + 7 s
 // 1667 - 1 min 12 s + 7 s
-#define SEKUNDA 10000
+#define SEKUNDA 5000
 
 #define X1 6
 #define X2 16
@@ -40,4 +40,6 @@ struct komunikat
     long mtype;
     pid_t ktype;
     char mtext[MTEXT_MAX];
+    int wiek;
+    int wiek_opiekuna;
 };
