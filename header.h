@@ -16,6 +16,7 @@
 // 1250 - 54 s + 7 s
 // 1667 - 1 min 12 s + 7 s
 #define SEKUNDA 5000
+#define DOBA 43200
 
 #define X1 6
 #define X2 16

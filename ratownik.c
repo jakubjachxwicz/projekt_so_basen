@@ -92,10 +92,25 @@ int main()
             exit(EXIT_FAILURE);
         }
 
-        pthread_join(t_wysylanie_sygnalu, NULL);
-        pthread_join(t_wpuszczanie_klientow, NULL);
-        pthread_join(t_wychodzenie_klientow, NULL);
+        if (pthread_join(t_wysylanie_sygnalu, NULL) != 0)
+        {
+            perror("pthread_join - ratownik 1t_wysylanie_sygnalu");
+            exit(EXIT_FAILURE);
+        }
+        if (pthread_join(t_wpuszczanie_klientow, NULL) != 0)
+        {
+            perror("pthread_join - ratownik 1 t_wpuszczanie_klientow");
+            exit(EXIT_FAILURE);
+        }
+        if (pthread_join(t_wychodzenie_klientow, NULL) != 0)
+        {
+            perror("pthread_join - ratownik 1 t_wychodzenie_klientow");
+            exit(EXIT_FAILURE);
+        }
+
         pthread_mutex_destroy(&mutex_olimp);
+
+        exit(0);
     }
     else
     {
@@ -133,10 +148,25 @@ int main()
                 exit(EXIT_FAILURE);
             }
 
-            pthread_join(t_wysylanie_sygnalu, NULL);
-            pthread_join(t_wpuszczanie_klientow, NULL);
-            pthread_join(t_wychodzenie_klientow, NULL);
+            if (pthread_join(t_wysylanie_sygnalu, NULL) != 0)
+            {
+                perror("pthread_join - ratownik 2 t_wysylanie_sygnalu");
+                exit(EXIT_FAILURE);
+            }
+            if (pthread_join(t_wpuszczanie_klientow, NULL) != 0)
+            {
+                perror("pthread_join - ratownik 2 t_wpuszczanie_klientow");
+                exit(EXIT_FAILURE);
+            }
+            if (pthread_join(t_wychodzenie_klientow, NULL) != 0)
+            {
+                perror("pthread_join - ratownik 2 t_wychodzenie_klientow");
+                exit(EXIT_FAILURE);
+            }
+
             pthread_mutex_destroy(&mutex_rek);
+
+            exit(0);
         }
         else
         {
@@ -174,10 +204,25 @@ int main()
                     exit(EXIT_FAILURE);
                 }
 
-                pthread_join(t_wysylanie_sygnalu, NULL);
-                pthread_join(t_wpuszczanie_klientow, NULL);
-                pthread_join(t_wychodzenie_klientow, NULL);
+                if (pthread_join(t_wysylanie_sygnalu, NULL) != 0)
+                {
+                    perror("pthread_join - ratownik 3 t_wysylanie_sygnalu");
+                    exit(EXIT_FAILURE);
+                }
+                if (pthread_join(t_wpuszczanie_klientow, NULL) != 0)
+                {
+                    perror("pthread_join - ratownik 3 t_wpuszczanie_klientow");
+                    exit(EXIT_FAILURE);
+                }
+                if (pthread_join(t_wychodzenie_klientow, NULL) != 0)
+                {
+                    perror("pthread_join - ratownik 3 t_wychodzenie_klientow");
+                    exit(EXIT_FAILURE);
+                }
+
                 pthread_mutex_destroy(&mutex_brod);
+
+                exit(0);
             }
         }
     }
@@ -214,6 +259,8 @@ void signal_handler(int sig)
 
 void* wpuszczanie_klientow_olimpijski(void *arg)
 {
+    pthread_t tid = pthread_self();  // Pobierz ID wątku
+    printf("WPUSZCZANIE DO OLIMPIJSKIEGO ID: %lu\n", tid); 
     int *klienci = (int *)arg;
     int wiek;
     kom.ktype = KOM_RATOWNIK_1;
@@ -235,7 +282,9 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
         kom.mtype = kom.ktype;
 
         pthread_mutex_lock(&mutex_olimp);
-        if (wiek < 18)
+        if (zakaz_wstepu)
+            strcpy(kom.mtext, "zakaz wstepu");
+        else if (wiek < 18)
             strcpy(kom.mtext, "wiek za niski");
         else if (klienci[0] == X1)
             strcpy(kom.mtext, "basen pelny");
@@ -263,6 +312,9 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
 
 void* wpuszczanie_klientow_rekreacyjny(void *arg)
 {
+    pthread_t tid = pthread_self();  // Pobierz ID wątku
+    printf("WPUSZCZANIE DO REKREACYJNEGO ID: %lu\n", tid); 
+    
     int (*klienci)[X2 + 1] = (int (*)[X2 + 1])arg;
     int wiek, wiek_opiekuna;
     kom.ktype = KOM_RATOWNIK_2;
@@ -287,14 +339,12 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
 
         pthread_mutex_lock(&mutex_rek);
         double sr = srednia_wieku(klienci[1], X2, wiek + wiek_opiekuna);
-        if (klienci[0][0] + ile_osob > X2)
-        {
+        if (zakaz_wstepu)
+            strcpy(kom.mtext, "zakaz wstepu");
+        else if (klienci[0][0] + ile_osob > X2)
             strcpy(kom.mtext, "basen pelny");
-        }
         else if (sr > 40)
-        {
             strcpy(kom.mtext, "srednia wieku za wysoka");
-        }
         else
         {
             klienci[0][0] += ile_osob;
@@ -318,11 +368,16 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
         }
     }
 
+    printf("KONCZYMY WATEK: %lu\n", tid);
+
     return NULL;
 }
 
 void* wpuszczanie_klientow_brodzik(void *arg)
 {
+    pthread_t tid = pthread_self();  // Pobierz ID wątku
+    printf("WPUSZCZANIE DO BRODZIKA ID: %lu\n", tid); 
+    
     int *klienci = (int *)arg;
     int wiek;
     kom.ktype = KOM_RATOWNIK_3;
@@ -344,7 +399,9 @@ void* wpuszczanie_klientow_brodzik(void *arg)
         kom.mtype = kom.ktype;
 
         pthread_mutex_lock(&mutex_brod);
-        if (wiek > 5)
+        if (zakaz_wstepu)
+            strcpy(kom.mtext, "zakaz wstepu");
+        else if (wiek > 5)
             strcpy(kom.mtext, "wiek za duzy");
         else if (klienci[0] == X3)
             strcpy(kom.mtext, "brodzik pelny");
@@ -372,6 +429,9 @@ void* wpuszczanie_klientow_brodzik(void *arg)
 
 void* wychodzenie_klientow(void *arg)
 {
+    pthread_t tid = pthread_self();  // Pobierz ID wątku
+    printf("PID = %d, WYCHODZENIE ID: %lu\n", getpid(), tid); 
+    
     while (flag_obsluga_klientow)
     {
         int *klienci = (int *)arg;
@@ -459,9 +519,14 @@ void* wychodzenie_klientow(void *arg)
 
 void* wysylanie_sygnalu(void *arg)
 {
+    pthread_t tid = pthread_self();  // Pobierz ID wątku
+    printf("PID = %d, SYGNALY ID: %lu\n", getpid(), tid); 
+    
     int *klienci = (int *)arg;
+    union sigval sig_data;
+    sig_data.sival_int = ktory_basen;
 
-    while (*((int*)(shm_czas_adres)) < (43200 - 7200))
+    while (*((int*)(shm_czas_adres)) < (DOBA - 7200))
     {
         usleep(SEKUNDA * 1800);
         if (rand() % 4 == ktory_basen)
@@ -480,17 +545,34 @@ void* wysylanie_sygnalu(void *arg)
                     {
                         if (klienci[i])
                         {
-                            printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci[i]);
+                            // printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci[i]);
                             wyrzuceni[i - 1] = klienci[i];
-                            kill(klienci[i], SIGUSR1);
+                            // kill(klienci[i], SIGUSR1);
+                            if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
+                            {
+                                perror("sigqueue - SIGUSR1 z basenu nr 1");
+                                exit(EXIT_FAILURE);
+                            }
+                            klienci[i] = 0;
                         }
                     }
+                    klienci[0] = 0;
                     pthread_mutex_unlock(&mutex_olimp);
 
                     usleep(SEKUNDA * ((rand() % 1200) + 600));
                     for (int i = 0; i < X1; i++)
                         if (wyrzuceni[i])
-                            kill(wyrzuceni[i], SIGUSR2);
+                        {
+                            // kill(wyrzuceni[i], SIGUSR2);
+                            if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
+                            {
+                                if (errno != ESRCH)
+                                {
+                                    perror("sigqueue - SIGUSR2 z basenu nr 1");
+                                    exit(EXIT_FAILURE);
+                                }
+                            }
+                        }
                     break;
                 case 2:
                     pthread_mutex_lock(&mutex_rek);
@@ -500,17 +582,35 @@ void* wysylanie_sygnalu(void *arg)
                     {
                         if (klienci_x2[0][i])
                         {
-                            printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci_x2[0][i]);
+                            // printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci_x2[0][i]);
                             wyrzuceni[i - 1] = klienci_x2[0][i];
-                            kill(klienci_x2[0][i], SIGUSR1);
+                            //kill(klienci_x2[0][i], SIGUSR1);
+                            if (sigqueue(klienci_x2[0][i], SIGUSR1, sig_data) == -1)
+                            {
+                                perror("sigqueue - SIGUSR1 z basenu nr 2");
+                                exit(EXIT_FAILURE);
+                            }
+                            klienci_x2[0][i] = 0;
+                            klienci_x2[1][i] = 0;
                         }
                     }
+                    klienci_x2[0][0] = 0;
                     pthread_mutex_unlock(&mutex_rek);
 
                     usleep(SEKUNDA * ((rand() % 1200) + 600));
                     for (int i = 0; i < X2; i++)
                         if (wyrzuceni[i] != 0)
-                            kill(wyrzuceni[i], SIGUSR2);
+                        {
+                            // kill(wyrzuceni[i], SIGUSR2);
+                            if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
+                            {
+                                if (errno != ESRCH)
+                                {
+                                    perror("sigqueue - SIGUSR2 z basenu nr 2");
+                                    exit(EXIT_FAILURE);
+                                }
+                            }
+                        }
                     break;
                 case 3:
                     pthread_mutex_lock(&mutex_brod);
@@ -519,17 +619,34 @@ void* wysylanie_sygnalu(void *arg)
                     {
                         if (klienci[i])
                         {
-                            printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci[i]);
+                            // printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci[i]);
                             wyrzuceni[i - 1] = klienci[i];
-                            kill(klienci[i], SIGUSR1);
+                            //kill(klienci[i], SIGUSR1);
+                            if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
+                            {
+                                perror("sigqueue - SIGUSR1 z basenu nr 3");
+                                exit(EXIT_FAILURE);
+                            }
+                            klienci[i] = 0;
                         }
                     }
+                    klienci[0] = 0;
                     pthread_mutex_unlock(&mutex_brod);
 
                     usleep(SEKUNDA * ((rand() % 1200) + 600));
                     for (int i = 0; i < X3; i++)
                         if (wyrzuceni[i] != 0)
-                            kill(wyrzuceni[i], SIGUSR2);
+                        {
+                            // kill(wyrzuceni[i], SIGUSR2);
+                            if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
+                            {
+                                if (errno != ESRCH)
+                                {
+                                    perror("sigqueue - SIGUSR2 z basenu nr 3");
+                                    exit(EXIT_FAILURE);
+                                }
+                            }
+                        }
                     break;
             }
 
