@@ -76,7 +76,7 @@ int main()
 	pthread_create(&t_klienci_vip, NULL, &klienci_vip, NULL);
 	flag_obsluga_vip = true;
 
-    while (*((int*)(shm_czas_adres)) < 43200)
+    while (*((int*)(shm_czas_adres)) < DOBA)
     {
 		semafor_p(semafor, 2);
         // Procesowanie klienta

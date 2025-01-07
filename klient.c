@@ -6,7 +6,13 @@
 static void semafor_v(int semafor_id, int numer_semafora);
 static void semafor_p(int semafor_id, int numer_semafora);
 void signal_handler(int sig);
+void sigusr_handler(int sig, siginfo_t *info, void *context);
 void *usuwanie_procesow();
+void opuszczenie_basenu();
+
+char godzina[9];
+char* shm_czas_adres;
+int semafor, ktory_basen, zakaz_wejscia[3];
 
 pthread_t t_usuwanie_procesow;
 
@@ -16,13 +22,27 @@ volatile bool flag_usuwanie;
 int main(int argc, char *argv[])
 {
     signal(SIGINT, signal_handler);
+    // signal(SIGUSR1, signal_handler);
+    // signal(SIGUSR2, signal_handler);
+    struct sigaction sa;
+    sa.sa_sigaction = sigusr_handler;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+
+    if (sigaction(SIGUSR1, &sa, NULL) == -1 || sigaction(SIGUSR2, &sa, NULL) == -1)
+    {
+        perror("sigaction - odbieranie sygnalow przez klienta");
+        exit(EXIT_FAILURE);
+    }
+
+    memset(zakaz_wejscia, 0, sizeof(zakaz_wejscia));
 
     pid_t pid_ratownicy = atoi(argv[1]);
     pid_t pid_kasjer = atoi(argv[2]);
 
     printf("Ja: %d, kasjer: %d, ratownicy: %d\n", getpid(), pid_kasjer, pid_ratownicy);
 
-    char godzina[9];
+    
     flag_usuwanie = true;
     
     srand(time(NULL));
@@ -41,7 +61,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-    int semafor = semget(key, 4, 0660);
+    semafor = semget(key, 4, 0660);
     if (semafor == -1)
 	{
 		perror("semget - blad dostepu do semaforow");
@@ -70,7 +90,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    char* shm_czas_adres = (char*)shmat(shm_czas_id, NULL, 0);
+    shm_czas_adres = (char*)shmat(shm_czas_id, NULL, 0);
     if (shm_czas_adres == (char*)(-1))
     {
         perror("shmat - problem z dolaczeniem pamieci do obslugi czasu");
@@ -93,7 +113,7 @@ int main(int argc, char *argv[])
     pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL);
 
     // Tworzenie klientow
-    while (*((int*)(shm_czas_adres)) < (43200 - 3600))
+    while (*((int*)(shm_czas_adres)) < (DOBA - 3600))
     {        
         pid_t pid = fork();
         if (pid < 0)
@@ -105,7 +125,6 @@ int main(int argc, char *argv[])
             // Kod dzialania klienta
             struct dane_klienta klient;
             klient.PID = getpid();
-            // klient.wiek = (rand() % 70) + 1;
             klient.wiek = (rand() % 70) + 1;
             klient.wiek_opiekuna = (klient.wiek < 10) ? ((rand() % 53) + 18) : 0;
             klient.pampers = (klient.wiek <= 3) ? true : false;
@@ -162,51 +181,31 @@ int main(int argc, char *argv[])
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 printf("[%s KLIENT PID = %d] wchodze do szatni\n", godzina, klient.PID);
                 
-                int ktory_basen = 0;
+                ktory_basen = 0;
                 struct komunikat kom;
                 kom.ktype = klient.PID;
                 kom.wiek = klient.wiek;
                 kom.wiek_opiekuna = klient.wiek_opiekuna;
 
-                int fd, choice = (rand() % 3) + 1;
+                int choice = (rand() % 3) + 1;
 
                 while (true)
                 {
                     if (*((int *)shm_czas_adres) > klient.godz_wyjscia)
                     {
-                        godz_sym(*((int *)shm_czas_adres), godzina);
-                        printf("[%s KLIENT PID = %d] pora wyjscia\n", godzina, klient.PID);
-
                         if (ktory_basen)
-                        {
-                            char file_name[13];
-                            strcpy(file_name, "fifo_basen_");
-                            sprintf(file_name + strlen(file_name), "%d", ktory_basen);
-                            semafor_p(semafor, 0);
-                            fd = open(file_name, O_WRONLY);
-                            if (fd < 0)
-                            {
-                                perror("open - nie mozna otworzyc FIFO (klient)");
-                                exit(EXIT_FAILURE);
-                            }
+                            opuszczenie_basenu();
 
-
-                            pid_t pid = klient.PID;
-                            if (write(fd, &pid, sizeof(pid)) == -1)
-                            {
-                                perror("write - pisanie do FIFO (klient)");
-                                exit(EXIT_FAILURE);
-                            }
-                            close(fd);
-                            semafor_v(semafor, 0);
-                        }
-
+                        godz_sym(*((int *)shm_czas_adres), godzina);
+                        printf("[%s KLIENT PID = %d] ide do domu\n", godzina, getpid());
                         break;
                     }
 
                     if (!ktory_basen)
                     {
                         choice = (rand() % 3) + 1;
+                        while (zakaz_wejscia[choice - 1])
+                            choice = (rand() % 3) + 1;
                         printf("KLIENT PID = %d, CHCE WEJSC NA BASEN: %d\n", klient.PID, choice);
                         if (choice == 1)
                         {
@@ -269,6 +268,8 @@ int main(int argc, char *argv[])
                                 printf("[%s KLIENT PID = %d] wchodze do brodzika\n", godzina, klient.PID);
                             }
                         }
+                        if (!ktory_basen)
+                            printf("KLIENT PID = %d, odpowiedz: %s\n", klient.PID, kom.mtext);
                     }
 
                     usleep(SEKUNDA * 120);
@@ -311,10 +312,50 @@ void signal_handler(int sig)
     }
 }
 
+void sigusr_handler(int sig, siginfo_t *info, void *context)
+{
+    if (sig == SIGUSR1)
+    {
+        printf("KLIENT PID = %d otrzymalem SIGUSR1 na basen %d\n", getpid(), info->si_value.sival_int);
+        zakaz_wejscia[info->si_value.sival_int - 1] = 1;
+        ktory_basen = 0;
+    } else if (sig == SIGUSR2)
+    {
+        printf("KLIENT PID = %d otrzymalem SIGUSR2 na basen %d\n", getpid(), info->si_value.sival_int);
+        zakaz_wejscia[info->si_value.sival_int - 1] = 0;
+    }
+}
+
 void *usuwanie_procesow()
 {
     while (flag_usuwanie)
         wait(NULL);
 
     return 0;
+}
+
+void opuszczenie_basenu()
+{
+    godz_sym(*((int *)shm_czas_adres), godzina);
+    printf("[%s KLIENT PID = %d] wychodze z basenu\n", godzina, getpid());
+    
+    char file_name[13];
+    strcpy(file_name, "fifo_basen_");
+    sprintf(file_name + strlen(file_name), "%d", ktory_basen);
+    semafor_p(semafor, 0);
+    int fd = open(file_name, O_WRONLY);
+    if (fd < 0)
+    {
+        perror("open - nie mozna otworzyc FIFO (klient)");
+        exit(EXIT_FAILURE);
+    }
+
+    pid_t pid = getpid();
+    if (write(fd, &pid, sizeof(pid)) == -1)
+    {
+        perror("write - pisanie do FIFO (klient)");
+        exit(EXIT_FAILURE);
+    }
+    close(fd);
+    semafor_v(semafor, 0);
 }
