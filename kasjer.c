@@ -7,10 +7,14 @@ static void semafor_p(int semafor_id, int numer_semafora);
 void odlacz_pamiec();
 void signal_handler(int sig);
 void* klienci_vip();
+void* okresowe_zamkniecie();
 
 char *shm_czas_adres;
+char godzina[9];
 struct dane_klienta *shm_adres;
-pthread_t t_klienci_vip;
+pthread_t t_klienci_vip, t_okresowe_zamkniecie;
+pthread_mutex_t mutex_czas_wyjscia;
+int ostatni_klient_czas_wyjscia, semafor;
 bool flag_obsluga_vip;
 key_t key;
 
@@ -21,7 +25,6 @@ int main()
 	srand(time(NULL));
 	
 	struct dane_klienta klient;
-	char godzina[9];
 
 	key = ftok(".", 51);
     if (key == -1)
@@ -37,10 +40,10 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    int semafor = semget(key, 4, 0660);
+    semafor = semget(key, 5, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
-		perror("KASJER: semget - blad dostepu do semaforow");
+		perror("semget - nie udalo sie dolaczyc do semafora");
 		exit(EXIT_FAILURE);
 	}
 
@@ -73,7 +76,10 @@ int main()
         exit(EXIT_FAILURE);
     }
 
+	pthread_mutex_init(&mutex_czas_wyjscia, NULL);
+
 	pthread_create(&t_klienci_vip, NULL, &klienci_vip, NULL);
+	pthread_create(&t_okresowe_zamkniecie, NULL, &okresowe_zamkniecie, NULL);
 	flag_obsluga_vip = true;
 
     while (*((int*)(shm_czas_adres)) < DOBA)
@@ -98,15 +104,22 @@ int main()
 
         memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
 
+		pthread_mutex_lock(&mutex_czas_wyjscia);
+		ostatni_klient_czas_wyjscia = *((int*)(shm_czas_adres)) + GODZINA;
+		pthread_mutex_unlock(&mutex_czas_wyjscia);
+
 		godz_sym(*((int *)shm_czas_adres), godzina);
         printf("[%s KASJER] Klient o PID = %d obsluzony\n", godzina, klient.PID);
 
         semafor_v(semafor, 3);
     }
 
+
 	odlacz_pamiec();
+	pthread_join(t_okresowe_zamkniecie, NULL);
 	flag_obsluga_vip = false;
 	pthread_join(t_klienci_vip, NULL);
+	pthread_mutex_destroy(&mutex_czas_wyjscia);
 	exit(0);
 }
 
@@ -166,9 +179,39 @@ void* klienci_vip()
             exit(EXIT_FAILURE);
         }
 
+		pthread_mutex_lock(&mutex_czas_wyjscia);
+		ostatni_klient_czas_wyjscia = *((int*)(shm_czas_adres)) + GODZINA;
+		pthread_mutex_unlock(&mutex_czas_wyjscia);
+
 		godz_sym(*((int *)shm_czas_adres), godzina);
         printf("[%s KASJER] VIP o PID = %d obsluzony\n", godzina, kom.ktype);
 	}
 
-	return 0;
+	return NULL;
+}
+
+void* okresowe_zamkniecie()
+{
+	int czas;
+	while ((czas = *((int *)shm_czas_adres)) < GODZINA * 4)
+		usleep(200000);
+
+	semafor_p(semafor, 4);
+	godz_sym(*((int *)shm_czas_adres), godzina);
+	printf("[%s KASJER] KASA ZAMKNIETA, CZEKAM NA WYJSCIE KLIENTOW\n", godzina);
+
+	while ((czas = *((int *)shm_czas_adres)) < ostatni_klient_czas_wyjscia)
+		usleep(1000);
+	godz_sym(*((int *)shm_czas_adres), godzina);
+	printf("[%s KASJER] KOMPLEKT BASENOW ZAMKNIETY, OTWARCIE ZA GODZINE\n", godzina);
+
+	while ((czas = *((int *)shm_czas_adres)) < ostatni_klient_czas_wyjscia + GODZINA)
+		usleep(1000);
+
+	godz_sym(*((int *)shm_czas_adres), godzina);
+	printf("[%s KASJER] KOMPLEKS BASENOW OTWARTY\n", godzina);
+
+	semafor_v(semafor, 4);
+	
+	return NULL;
 }
