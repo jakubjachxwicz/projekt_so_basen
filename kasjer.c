@@ -84,14 +84,6 @@ int main()
 
     while (*((int*)(shm_czas_adres)) < DOBA)
     {
-		// if (!flag_po_zamknieciu && *((int*)(shm_czas_adres)) > 14400)
-		// {
-		// 	semafor_p(semafor, 4);
-		// 	godz_sym(*((int *)shm_czas_adres), godzina);
-        // 	printf("[%s KASJER] Poczatek okresowego zamkniecia\n", godzina, klient.PID);
-		// }
-
-		
 		semafor_p(semafor, 2);
         // Procesowanie klienta
 		memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
@@ -200,18 +192,24 @@ void* klienci_vip()
 
 void* okresowe_zamkniecie()
 {
-	usleep(GODZINA * 2);
+	int czas;
+	while ((czas = *((int *)shm_czas_adres)) < GODZINA * 4)
+		usleep(200000);
 
 	semafor_p(semafor, 4);
 	godz_sym(*((int *)shm_czas_adres), godzina);
-	printf("[%s KASJER] Poczatek okresowego zamkniecia\n", godzina);
+	printf("[%s KASJER] KASA ZAMKNIETA, CZEKAM NA WYJSCIE KLIENTOW\n", godzina);
 
-	printf("Wyjscie ostatniego klienta: %d\n", ostatni_klient_czas_wyjscia);
+	while ((czas = *((int *)shm_czas_adres)) < ostatni_klient_czas_wyjscia)
+		usleep(1000);
+	godz_sym(*((int *)shm_czas_adres), godzina);
+	printf("[%s KASJER] KOMPLEKT BASENOW ZAMKNIETY, OTWARCIE ZA GODZINE\n", godzina);
 
-	sleep(GODZINA * 2);
+	while ((czas = *((int *)shm_czas_adres)) < ostatni_klient_czas_wyjscia + GODZINA)
+		usleep(1000);
 
 	godz_sym(*((int *)shm_czas_adres), godzina);
-	printf("[%s KASJER] Koniec okresowego zamkniecia\n", godzina);
+	printf("[%s KASJER] KOMPLEKS BASENOW OTWARTY\n", godzina);
 
 	semafor_v(semafor, 4);
 	

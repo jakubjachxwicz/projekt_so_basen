@@ -115,12 +115,16 @@ int main(int argc, char *argv[])
     // Tworzenie klientow
     while (*((int*)(shm_czas_adres)) < (DOBA - 3600))
     {        
-        semafor_p(semafor, 4);        
+        semafor_p(semafor, 4);
+        // printf("OBNIZYLIM SEMAFOR\n");      
         pid_t pid = fork();
-        if (getpid() == pid_macierzysty)
+        if (pid > 0)
+        {
+            // printf("STEVEN HERE\n");
             semafor_v(semafor, 4);
-        
-        if (pid < 0)
+            // printf("PODNIESLIM SEMAFOR\n");
+        }
+        else if (pid < 0)
         {
             perror("fork error - nowy klient");
             exit(EXIT_FAILURE);

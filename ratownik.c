@@ -529,7 +529,7 @@ void* wysylanie_sygnalu(void *arg)
     while (*((int*)(shm_czas_adres)) < (DOBA - 7200))
     {
         usleep(SEKUNDA * 1800);
-        if (rand() % 4 == ktory_basen)
+        if (rand() % 6 == ktory_basen)
         {
             godz_sym(*((int *)shm_czas_adres), godzina);
             printf("[%s RATOWNIK %d] wysylam SIGUSR1 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
