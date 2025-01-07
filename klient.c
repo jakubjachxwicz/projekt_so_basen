@@ -18,7 +18,6 @@ pthread_t t_usuwanie_procesow;
 
 volatile bool flag_usuwanie;
 
-
 int main(int argc, char *argv[])
 {
     signal(SIGINT, signal_handler);
@@ -39,6 +38,7 @@ int main(int argc, char *argv[])
 
     pid_t pid_ratownicy = atoi(argv[1]);
     pid_t pid_kasjer = atoi(argv[2]);
+    pid_t pid_macierzysty = getpid();
 
     printf("Ja: %d, kasjer: %d, ratownicy: %d\n", getpid(), pid_kasjer, pid_ratownicy);
 
@@ -61,10 +61,10 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 4, 0660);
+    semafor = semget(key, 5, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
-		perror("semget - blad dostepu do semaforow");
+		perror("semget - dolaczyc do semafora");
 		exit(EXIT_FAILURE);
 	}
 
@@ -115,7 +115,11 @@ int main(int argc, char *argv[])
     // Tworzenie klientow
     while (*((int*)(shm_czas_adres)) < (DOBA - 3600))
     {        
+        semafor_p(semafor, 4);        
         pid_t pid = fork();
+        if (getpid() == pid_macierzysty)
+            semafor_v(semafor, 4);
+        
         if (pid < 0)
         {
             perror("fork error - nowy klient");
