@@ -133,6 +133,7 @@ int main(int argc, char *argv[])
             {
                 semafor_p(semafor, 5);
                 godz_sym(*((int *)shm_czas_adres), godzina);
+                set_color(BLUE);
                 printf("[%s VIP PID = %d, wiek: %d] podchodzi do kasy\n", godzina, getpid(), klient.wiek);
                 
                 struct komunikat kom;
@@ -163,6 +164,7 @@ int main(int argc, char *argv[])
             } else
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
+                set_color(BLUE);
                 printf("[%s KLIENT PID = %d, wiek: %d] w kolejce na basen\n", godzina, getpid(), klient.wiek);
 
                 semafor_p(semafor, 1);
@@ -178,6 +180,7 @@ int main(int argc, char *argv[])
             if (klient.wpuszczony)
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
+                set_color(BLUE);
                 printf("[%s KLIENT PID = %d] wchodze do szatni\n", godzina, klient.PID);
                 
                 ktory_basen = 0;
@@ -196,6 +199,7 @@ int main(int argc, char *argv[])
                             opuszczenie_basenu();
 
                         godz_sym(*((int *)shm_czas_adres), godzina);
+                        set_color(BLUE);
                         printf("[%s KLIENT PID = %d] ide do domu\n", godzina, getpid());
                         break;
                     }
@@ -205,7 +209,8 @@ int main(int argc, char *argv[])
                         choice = (rand() % 3) + 1;
                         while (zakaz_wejscia[choice - 1])
                             choice = (rand() % 3) + 1;
-                        printf("KLIENT PID = %d, CHCE WEJSC NA BASEN: %d\n", klient.PID, choice);
+                        set_color(YELLOW);
+                        printf("KLIENT PID = %d, chce wejsc na basen: %d\n", klient.PID, choice);
                         if (choice == 1)
                         {
                             kom.mtype = KOM_RATOWNIK_1;
@@ -224,6 +229,7 @@ int main(int argc, char *argv[])
                             {
                                 ktory_basen = 1;
                                 godz_sym(*((int *)shm_czas_adres), godzina);
+                                set_color(GREEN);
                                 printf("[%s KLIENT PID = %d] wchodze do basenu olimpijskiego\n", godzina, klient.PID);
                             }
                         } else if (choice == 2)
@@ -244,6 +250,7 @@ int main(int argc, char *argv[])
                             {
                                 ktory_basen = 2;
                                 godz_sym(*((int *)shm_czas_adres), godzina);
+                                set_color(GREEN);
                                 printf("[%s KLIENT PID = %d] wchodze do basenu rekreacyjnego\n", godzina, klient.PID);
                             }
                         } else if (choice == 3)
@@ -264,11 +271,15 @@ int main(int argc, char *argv[])
                             {
                                 ktory_basen = 3;
                                 godz_sym(*((int *)shm_czas_adres), godzina);
+                                set_color(GREEN);
                                 printf("[%s KLIENT PID = %d] wchodze do brodzika\n", godzina, klient.PID);
                             }
                         }
                         if (!ktory_basen)
+                        {
+                            set_color(RED);
                             printf("KLIENT PID = %d, odpowiedz: %s\n", klient.PID, kom.mtext);
+                        }
                     }
 
                     usleep(SEKUNDA * 180);
@@ -276,7 +287,8 @@ int main(int argc, char *argv[])
             } else
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
-                printf("[%s KLIENT PID = %d] nie wpuszczono mnie na basen\n", godzina, getpid());
+                set_color(RED);
+                printf("[%s KLIENT PID = %d] nie wpuszczono mnie do kompleksu basenowego\n", godzina, getpid());
             }
 
             if (shmdt(shm_adres) == -1)
@@ -315,11 +327,13 @@ void sigusr_handler(int sig, siginfo_t *info, void *context)
 {
     if (sig == SIGUSR1)
     {
+        set_color(BLUE);
         printf("KLIENT PID = %d otrzymalem SIGUSR1 na basen %d\n", getpid(), info->si_value.sival_int);
         zakaz_wejscia[info->si_value.sival_int - 1] = 1;
         ktory_basen = 0;
     } else if (sig == SIGUSR2)
     {
+        set_color(BLUE);
         printf("KLIENT PID = %d otrzymalem SIGUSR2 na basen %d\n", getpid(), info->si_value.sival_int);
         zakaz_wejscia[info->si_value.sival_int - 1] = 0;
     }
@@ -336,6 +350,7 @@ void *usuwanie_procesow()
 void opuszczenie_basenu()
 {
     godz_sym(*((int *)shm_czas_adres), godzina);
+    set_color(BLUE);
     printf("[%s KLIENT PID = %d] wychodze z basenu\n", godzina, getpid());
     
     char file_name[13];

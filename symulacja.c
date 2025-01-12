@@ -177,6 +177,7 @@ int main()
         }
     }
 
+    set_color(RESET);
     printf("Klienci PID: %d, kasjer PID: %d, ratownicy PID: %d\n\n", pid_klienci, pid_kasjer, pid_ratownicy);
 
     czyszczenie();
@@ -199,6 +200,7 @@ void *czasomierz()
 
 void czyszczenie()
 {
+    set_color(RESET);
     int status;
     pid_t finished;
     finished = waitpid(pid_klienci, &status, 0);

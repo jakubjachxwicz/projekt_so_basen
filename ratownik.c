@@ -287,6 +287,7 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
             klienci[0]++;
             dodaj_do_tablicy(klienci, X1, kom.ktype);
 
+            set_color(RESET);
             printf("****   W olimpijskim:   ****\n");
             for (int i = 1; i <= X1; i++)
                 (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
@@ -343,6 +344,7 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
             if (wiek_opiekuna)
                 dodaj_do_tablicy_X2(klienci, X2, kom.ktype, wiek_opiekuna);
 
+            set_color(RESET);
             printf("****   W rekreacyjnym:   ****\n");
             for (int i = 1; i <= X2; i++)
                 (i < X2) ? printf("%d, ", klienci[0][i]) : printf("%d\n", klienci[0][i]);
@@ -396,6 +398,7 @@ void* wpuszczanie_klientow_brodzik(void *arg)
             klienci[0]++;
             dodaj_do_tablicy(klienci, X3, kom.ktype);
 
+            set_color(RESET);
             printf("*****   W brodziku:   *****\n");
             for (int i = 1; i <= X3; i++)
                 (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
@@ -445,11 +448,13 @@ void* wychodzenie_klientow(void *arg)
                 pthread_mutex_lock(&mutex_olimp);
 
                 godz_sym(*((int *)shm_czas_adres), godzina);
+                set_color(MAGENTA);
                 printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
 
                 klienci[0]--;
                 usun_z_tablicy(klienci, X1, pid);
 
+                set_color(RESET);
                 printf("****   W olimpijskim:   ****\n");
                 for (int i = 1; i <= X1; i++)
                     (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
@@ -460,6 +465,7 @@ void* wychodzenie_klientow(void *arg)
                 pthread_mutex_lock(&mutex_rek);
 
                 godz_sym(*((int *)shm_czas_adres), godzina);
+                set_color(MAGENTA);
                 printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
 
                 int (*klienci_x2)[X2 + 1] = (int (*)[X2 + 1])klienci;
@@ -469,6 +475,7 @@ void* wychodzenie_klientow(void *arg)
                 for (int j = 0; j < ile; j++)
                     usun_z_tablicy_X2(klienci_x2, X2, pid);
 
+                set_color(RESET);
                 printf("****   W rekreacyjnym:   ****\n");
                 for (int i = 1; i <= X2; i++)
                     (i < X2) ? printf("%d, ", klienci_x2[0][i]) : printf("%d\n", klienci_x2[0][i]);
@@ -481,11 +488,13 @@ void* wychodzenie_klientow(void *arg)
                 pthread_mutex_lock(&mutex_brod);
 
                 godz_sym(*((int *)shm_czas_adres), godzina);
+                set_color(MAGENTA);
                 printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
 
                 klienci[0]--;
                 usun_z_tablicy(klienci, X3, pid);
 
+                set_color(RESET);
                 printf("*****   W brodziku:   *****\n");
                 for (int i = 1; i <= X3; i++)
                     (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
@@ -512,6 +521,7 @@ void* wysylanie_sygnalu(void *arg)
         if (rand() % 6 == ktory_basen)
         {
             godz_sym(*((int *)shm_czas_adres), godzina);
+            set_color(MAGENTA);
             printf("[%s RATOWNIK %d] wysylam SIGUSR1 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
             
             int wyrzuceni[(ktory_basen == 1 ? X1 : ((ktory_basen == 2) ? X2 : X3))];
@@ -622,6 +632,7 @@ void* wysylanie_sygnalu(void *arg)
             }
 
             godz_sym(*((int *)shm_czas_adres), godzina);
+            set_color(MAGENTA);
             printf("[%s RATOWNIK %d] wysylam SIGUSR2 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
             zakaz_wstepu = false;
         }
