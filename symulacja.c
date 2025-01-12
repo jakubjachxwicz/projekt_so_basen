@@ -1,9 +1,7 @@
 #include "header.h"
 #include "utils.c"
 
-// Adres zmiennej przechowujacej czas
 char* shm_czas_adres;
-
 volatile bool stop_time;
 
 void *czasomierz();
@@ -18,10 +16,7 @@ int shm_id, shm_czas_id, semafor, msq_kolejka_vip, msq_klient_ratownik;
 int main()
 {
     signal(SIGINT, signal_handler);
-    signal(SIGUSR1, signal_handler);
-
     stop_time = false;
-    
     
     // Inicjowanie semaforkow
     key_t key = ftok(".", 51);
@@ -38,13 +33,17 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 5, 0660|IPC_CREAT);
+    // Semafory:
+    // 0: klienci opuszczajacy basen
+    // 1 - 3: klienci zwykli podchodzacy do kasy
+    // 4: okresowe zamykanie
+    // 5: klienci VIP
+    semafor = semget(key, 6, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie utworzyc semafora");
 		exit(EXIT_FAILURE);
 	}
-
     if (semctl(semafor, 0, SETVAL, 1) == -1)
     {
         perror("semctl - nie mozna ustawic semafora");
@@ -66,6 +65,11 @@ int main()
         exit(EXIT_FAILURE);
     }
     if (semctl(semafor, 4, SETVAL, 1) == -1)
+    {
+        perror("semctl - nie mozna ustawic semafora");
+        exit(EXIT_FAILURE);
+    }
+    if (semctl(semafor, 5, SETVAL, 1) == -1)
     {
         perror("semctl - nie mozna ustawic semafora");
         exit(EXIT_FAILURE);
@@ -101,7 +105,6 @@ int main()
         perror("shmget - tworzenie pamieci wspoldzielonej do obługi czasu");
         exit(EXIT_FAILURE);
     }
-
     shm_czas_adres = (char*)shmat(shm_czas_id, NULL, 0);
     if (shm_czas_adres == (char*)(-1))
     {
@@ -112,6 +115,7 @@ int main()
     *shm_czas_adres = 0;
     pthread_create(&t_czasomierz, NULL, &czasomierz, NULL);
 
+    // Inicjowanie kolejek FIFO do obslugi klientow opuszczajacych basen    
     if (mkfifo("fifo_basen_1", 0600) == -1 || mkfifo("fifo_basen_2", 0600) == -1 || mkfifo("fifo_basen_3", 0600) == -1)
     {
         if (errno != EEXIST)
@@ -128,8 +132,11 @@ int main()
         exit(EXIT_FAILURE);
     } else if (pid_ratownicy == 0)
     {
-        execl("./ratownik", "ratownik", NULL);
-        exit(0);
+        if (execl("./ratownik", "ratownik", NULL) == -1)
+        {
+            perror("execl - ratownik.c");
+            exit(EXIT_FAILURE);
+        }
     }
     else
     {
@@ -140,8 +147,11 @@ int main()
             exit(EXIT_FAILURE);
         } else if (pid_kasjer == 0)
         {
-            execl("./kasjer", "kasjer", NULL);
-            exit(0);
+            if (execl("./kasjer", "kasjer", NULL) == -1)
+            {
+                perror("execl - kasjer.c");
+                exit(EXIT_FAILURE);
+            }
         }
         else
         {
@@ -158,8 +168,11 @@ int main()
                 char pid_kasjer_str[10];
                 sprintf(pid_kasjer_str, "%d", pid_kasjer);
 
-                execl("./klient", "klient", pid_ratownicy_str, pid_kasjer_str, NULL);
-                exit(0);
+                if (execl("./klient", "klient", pid_ratownicy_str, pid_kasjer_str, NULL) == -1)
+                {
+                    perror("execl - klient.c");
+                    exit(EXIT_FAILURE);
+                }
             }
         }
     }
@@ -167,7 +180,6 @@ int main()
     printf("Klienci PID: %d, kasjer PID: %d, ratownicy PID: %d\n\n", pid_klienci, pid_kasjer, pid_ratownicy);
 
     czyszczenie();
-
     return 0;
 }
 
@@ -181,7 +193,6 @@ void *czasomierz()
         (*jaki_czas)++;
     }
 
-    // kill(pid_kasjer, SIGINT);
     return 0;
 }
 
@@ -250,9 +261,5 @@ void signal_handler(int sig)
         
         czyszczenie();
         exit(0);
-    }
-    else if (sig == SIGUSR1)
-    {
-        printf("elo tu symulacja, nie wiem jak do tego doszlo xddddd\n");
     }
 }

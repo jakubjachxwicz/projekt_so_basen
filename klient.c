@@ -20,9 +20,9 @@ volatile bool flag_usuwanie;
 
 int main(int argc, char *argv[])
 {
+    srand(time(NULL));
+    
     signal(SIGINT, signal_handler);
-    // signal(SIGUSR1, signal_handler);
-    // signal(SIGUSR2, signal_handler);
     struct sigaction sa;
     sa.sa_sigaction = sigusr_handler;
     sa.sa_flags = SA_SIGINFO;
@@ -34,18 +34,12 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    flag_usuwanie = true;
     memset(zakaz_wejscia, 0, sizeof(zakaz_wejscia));
 
     pid_t pid_ratownicy = atoi(argv[1]);
     pid_t pid_kasjer = atoi(argv[2]);
     pid_t pid_macierzysty = getpid();
-
-    printf("Ja: %d, kasjer: %d, ratownicy: %d\n", getpid(), pid_kasjer, pid_ratownicy);
-
-    
-    flag_usuwanie = true;
-    
-    srand(time(NULL));
 
     key_t key = ftok(".", 51);
     if (key == -1)
@@ -61,7 +55,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 5, 0660|IPC_CREAT);
+    semafor = semget(key, 6, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - dolaczyc do semafora");
@@ -116,14 +110,9 @@ int main(int argc, char *argv[])
     while (*((int*)(shm_czas_adres)) < (DOBA - 3600))
     {        
         semafor_p(semafor, 4);
-        // printf("OBNIZYLIM SEMAFOR\n");      
         pid_t pid = fork();
         if (pid > 0)
-        {
-            // printf("STEVEN HERE\n");
             semafor_v(semafor, 4);
-            // printf("PODNIESLIM SEMAFOR\n");
-        }
         else if (pid < 0)
         {
             perror("fork error - nowy klient");
@@ -142,6 +131,7 @@ int main(int argc, char *argv[])
 
             if (klient.VIP)
             {
+                semafor_p(semafor, 5);
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 printf("[%s VIP PID = %d, wiek: %d] podchodzi do kasy\n", godzina, getpid(), klient.wiek);
                 
@@ -169,6 +159,7 @@ int main(int argc, char *argv[])
                 }
                 else
                     klient.wpuszczony = false;
+                semafor_v(semafor, 5);
             } else
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
@@ -176,7 +167,7 @@ int main(int argc, char *argv[])
 
                 semafor_p(semafor, 1);
                 memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
-                usleep(1000);
+                //usleep(1000);
                 semafor_v(semafor, 2);
 
                 semafor_p(semafor, 3);
@@ -280,7 +271,7 @@ int main(int argc, char *argv[])
                             printf("KLIENT PID = %d, odpowiedz: %s\n", klient.PID, kom.mtext);
                     }
 
-                    usleep(SEKUNDA * 120);
+                    usleep(SEKUNDA * 180);
                 }
             } else
             {
@@ -297,7 +288,7 @@ int main(int argc, char *argv[])
             exit(0);
         }
 
-        sleep((rand() % 6) + 2);
+        usleep(SEKUNDA * ((rand() % 360) + 120));
     }
 
 

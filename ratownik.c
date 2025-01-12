@@ -23,9 +23,9 @@ int main()
 {
     signal(SIGINT, signal_handler);
     srand(time(NULL));
+
     pid_macierzysty = getpid();
     zakaz_wstepu = false;
-    
     flag_obsluga_klientow = true;
     
     key_t key_czas = ftok(".", 52);
@@ -66,7 +66,6 @@ int main()
     } else if (pid_ratownik1 == 0)
     {
         // Kod ratownika 1 - olimpijski
-        printf("[RATOWNIK 1 PID = %d]\n", getpid());
         ktory_basen = 1;
 
         int klienci[X1 + 1];
@@ -122,7 +121,6 @@ int main()
         } else if (pid_ratownik2 == 0)
         {
             // Kod ratownika 2 - rekreacyjny
-            printf("[RATOWNIK 2 PID = %d]\n", getpid());
             ktory_basen = 2;
 
             int klienci[2][X2 + 1];
@@ -178,12 +176,10 @@ int main()
             } else if (pid_ratownik3 == 0)
             {
                 // Kod ratownika 3 - brodzik
-                printf("[RATOWNIK 3 PID = %d]\n", getpid());
                 ktory_basen = 3;
 
                 int klienci[X3 + 1];
                 memset(klienci, 0, sizeof(klienci));
-
                 pthread_mutex_init(&mutex_brod, NULL);
 
                 if (pthread_create(&t_wpuszczanie_klientow, NULL, &wpuszczanie_klientow_brodzik, klienci) != 0)
@@ -259,8 +255,6 @@ void signal_handler(int sig)
 
 void* wpuszczanie_klientow_olimpijski(void *arg)
 {
-    pthread_t tid = pthread_self();  // Pobierz ID wątku
-    printf("WPUSZCZANIE DO OLIMPIJSKIEGO ID: %lu\n", tid); 
     int *klienci = (int *)arg;
     int wiek;
     kom.ktype = KOM_RATOWNIK_1;
@@ -312,9 +306,6 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
 
 void* wpuszczanie_klientow_rekreacyjny(void *arg)
 {
-    pthread_t tid = pthread_self();  // Pobierz ID wątku
-    printf("WPUSZCZANIE DO REKREACYJNEGO ID: %lu\n", tid); 
-    
     int (*klienci)[X2 + 1] = (int (*)[X2 + 1])arg;
     int wiek, wiek_opiekuna;
     kom.ktype = KOM_RATOWNIK_2;
@@ -368,16 +359,11 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
         }
     }
 
-    printf("KONCZYMY WATEK: %lu\n", tid);
-
     return NULL;
 }
 
 void* wpuszczanie_klientow_brodzik(void *arg)
 {
-    pthread_t tid = pthread_self();  // Pobierz ID wątku
-    printf("WPUSZCZANIE DO BRODZIKA ID: %lu\n", tid); 
-    
     int *klienci = (int *)arg;
     int wiek;
     kom.ktype = KOM_RATOWNIK_3;
@@ -429,9 +415,6 @@ void* wpuszczanie_klientow_brodzik(void *arg)
 
 void* wychodzenie_klientow(void *arg)
 {
-    pthread_t tid = pthread_self();  // Pobierz ID wątku
-    printf("PID = %d, WYCHODZENIE ID: %lu\n", getpid(), tid); 
-    
     while (flag_obsluga_klientow)
     {
         int *klienci = (int *)arg;
@@ -510,8 +493,6 @@ void* wychodzenie_klientow(void *arg)
                 pthread_mutex_unlock(&mutex_brod);
                 break;
         }
-
-        usleep(SEKUNDA * 5);
     }
 
     return NULL;
@@ -520,7 +501,6 @@ void* wychodzenie_klientow(void *arg)
 void* wysylanie_sygnalu(void *arg)
 {
     pthread_t tid = pthread_self();  // Pobierz ID wątku
-    printf("PID = %d, SYGNALY ID: %lu\n", getpid(), tid); 
     
     int *klienci = (int *)arg;
     union sigval sig_data;
@@ -545,9 +525,7 @@ void* wysylanie_sygnalu(void *arg)
                     {
                         if (klienci[i])
                         {
-                            // printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci[i]);
                             wyrzuceni[i - 1] = klienci[i];
-                            // kill(klienci[i], SIGUSR1);
                             if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
                             {
                                 perror("sigqueue - SIGUSR1 z basenu nr 1");
@@ -563,7 +541,6 @@ void* wysylanie_sygnalu(void *arg)
                     for (int i = 0; i < X1; i++)
                         if (wyrzuceni[i])
                         {
-                            // kill(wyrzuceni[i], SIGUSR2);
                             if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
                             {
                                 if (errno != ESRCH)
@@ -582,9 +559,7 @@ void* wysylanie_sygnalu(void *arg)
                     {
                         if (klienci_x2[0][i])
                         {
-                            // printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci_x2[0][i]);
                             wyrzuceni[i - 1] = klienci_x2[0][i];
-                            //kill(klienci_x2[0][i], SIGUSR1);
                             if (sigqueue(klienci_x2[0][i], SIGUSR1, sig_data) == -1)
                             {
                                 perror("sigqueue - SIGUSR1 z basenu nr 2");
@@ -601,7 +576,6 @@ void* wysylanie_sygnalu(void *arg)
                     for (int i = 0; i < X2; i++)
                         if (wyrzuceni[i] != 0)
                         {
-                            // kill(wyrzuceni[i], SIGUSR2);
                             if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
                             {
                                 if (errno != ESRCH)
@@ -619,9 +593,7 @@ void* wysylanie_sygnalu(void *arg)
                     {
                         if (klienci[i])
                         {
-                            // printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci[i]);
                             wyrzuceni[i - 1] = klienci[i];
-                            //kill(klienci[i], SIGUSR1);
                             if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
                             {
                                 perror("sigqueue - SIGUSR1 z basenu nr 3");
@@ -637,7 +609,6 @@ void* wysylanie_sygnalu(void *arg)
                     for (int i = 0; i < X3; i++)
                         if (wyrzuceni[i] != 0)
                         {
-                            // kill(wyrzuceni[i], SIGUSR2);
                             if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
                             {
                                 if (errno != ESRCH)

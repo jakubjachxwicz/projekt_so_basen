@@ -40,7 +40,7 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 5, 0660|IPC_CREAT);
+    semafor = semget(key, 6, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie dolaczyc do semafora");
@@ -78,16 +78,25 @@ int main()
 
 	pthread_mutex_init(&mutex_czas_wyjscia, NULL);
 
-	pthread_create(&t_klienci_vip, NULL, &klienci_vip, NULL);
-	pthread_create(&t_okresowe_zamkniecie, NULL, &okresowe_zamkniecie, NULL);
+	if (pthread_create(&t_klienci_vip, NULL, &klienci_vip, NULL) != 0)
+	{
+		perror("pthread_create - tworzenie watku do obslugi klientow VIP");
+		exit(EXIT_FAILURE);
+	}
+	if (pthread_create(&t_okresowe_zamkniecie, NULL, &okresowe_zamkniecie, NULL) != 0)
+	{
+		perror("pthread_create - tworzenie watku dookresowego zamykania");
+		exit(EXIT_FAILURE);
+	}
 	flag_obsluga_vip = true;
 
+    // while (*((int*)(shm_czas_adres)) < DOBA)
     while (*((int*)(shm_czas_adres)) < DOBA)
     {
 		semafor_p(semafor, 2);
         // Procesowanie klienta
 		memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
-		usleep(SEKUNDA * 60);
+		//usleep(SEKUNDA * 60);
 
 		if ((klient.wiek > 18 || klient.wiek < 10) && klient.pieniadze >= 60)
 		{
@@ -148,6 +157,7 @@ void signal_handler(int sig)
 
 void* klienci_vip()
 {
+	printf("Watek oblugi klientow VIP uruchomiony\n");
 	char godzina[9];
 	int msq_kolejka_vip = msgget(key, 0600);
 	if (msq_kolejka_vip == -1)
@@ -157,7 +167,7 @@ void* klienci_vip()
     }
 
 	struct komunikat kom;
-	
+
 	while (flag_obsluga_vip)
 	{
 		kom.mtype = KOM_KASJER;
@@ -166,6 +176,8 @@ void* klienci_vip()
             perror("msgrcv -  kasjer: problem przy odbiorze komunikatu");
             exit(EXIT_FAILURE);
         }
+
+		printf("KASJER: Obsluguje klienta VIP\n");
 
 		kom.mtype = kom.ktype;
 		if (rand() % 30 == 16)
