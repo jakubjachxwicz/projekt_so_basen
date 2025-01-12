@@ -40,7 +40,7 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 6, 0660|IPC_CREAT);
+    semafor = semget(key, 7, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie dolaczyc do semafora");
@@ -91,7 +91,7 @@ int main()
 	flag_obsluga_vip = true;
 
     // while (*((int*)(shm_czas_adres)) < DOBA)
-    while (*((int*)(shm_czas_adres)) < DOBA)
+    while (true)
     {
 		semafor_p(semafor, 2);
         // Procesowanie klienta

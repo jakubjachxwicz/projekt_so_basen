@@ -38,7 +38,8 @@ int main()
     // 1 - 3: klienci zwykli podchodzacy do kasy
     // 4: okresowe zamykanie
     // 5: klienci VIP
-    semafor = semget(key, 6, 0660|IPC_CREAT);
+    // 6: kolejka do kompleksu basenow
+    semafor = semget(key, 7, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie utworzyc semafora");
@@ -70,6 +71,11 @@ int main()
         exit(EXIT_FAILURE);
     }
     if (semctl(semafor, 5, SETVAL, 1) == -1)
+    {
+        perror("semctl - nie mozna ustawic semafora");
+        exit(EXIT_FAILURE);
+    }
+    if (semctl(semafor, 6, SETVAL, (X1 + X2 + X3) * 3) == -1)
     {
         perror("semctl - nie mozna ustawic semafora");
         exit(EXIT_FAILURE);
@@ -193,6 +199,10 @@ void *czasomierz()
         usleep(SEKUNDA);
         (*jaki_czas)++;
     }
+
+    kill(-pid_klienci, SIGINT);
+    kill(-pid_ratownicy, SIGINT);
+    kill(pid_kasjer, SIGINT);
 
     return 0;
 }

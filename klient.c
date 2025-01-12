@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 6, 0660|IPC_CREAT);
+    semafor = semget(key, 7, 0660|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - dolaczyc do semafora");
@@ -105,6 +105,7 @@ int main(int argc, char *argv[])
     }
 
     pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL);
+    setpgid(0, 0);
 
     // Tworzenie klientow
     while (*((int*)(shm_czas_adres)) < (DOBA - 3600))
@@ -115,10 +116,32 @@ int main(int argc, char *argv[])
             semafor_v(semafor, 4);
         else if (pid < 0)
         {
-            perror("fork error - nowy klient");
-            exit(EXIT_FAILURE);
+            if (errno == EAGAIN)
+            {
+                perror("fork - nowy klient, za duzo procesow");
+                set_color(RESET);
+                printf("[KLIENCI] Ponowna proba utworzenia nowego klienta\n");
+                // exit(EXIT_FAILURE);
+            } else if (errno == ENOMEM)
+            {
+                perror("fork error - brak pamieci w systemie");
+                exit(EXIT_FAILURE);
+            } else
+            {
+                perror("fork error - nowy klient");
+                exit(EXIT_FAILURE);
+            }
         } else if (pid == 0)
         {
+            setpgid(0, getppid());
+            semafor_p(semafor, 6);
+
+            if (*((int*)(shm_czas_adres)) >= DOBA)
+            {
+                semafor_v(semafor, 6);
+                exit(0);
+            }
+            
             // Kod dzialania klienta
             struct dane_klienta klient;
             klient.PID = getpid();
@@ -209,8 +232,9 @@ int main(int argc, char *argv[])
                         choice = (rand() % 3) + 1;
                         while (zakaz_wejscia[choice - 1])
                             choice = (rand() % 3) + 1;
+                        godz_sym(*((int *)shm_czas_adres), godzina);
                         set_color(YELLOW);
-                        printf("KLIENT PID = %d, chce wejsc na basen: %d\n", klient.PID, choice);
+                        printf("[%s KLIENT PID = %d] chce wejsc na basen: %d\n", godzina, klient.PID, choice);
                         if (choice == 1)
                         {
                             kom.mtype = KOM_RATOWNIK_1;
@@ -297,10 +321,11 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
+            semafor_v(semafor, 6);
             exit(0);
         }
 
-        usleep(SEKUNDA * ((rand() % 360) + 120));
+        // usleep(SEKUNDA * ((rand() % 360) + 120));
     }
 
 

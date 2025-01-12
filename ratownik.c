@@ -25,6 +25,7 @@ int main()
     srand(time(NULL));
 
     pid_macierzysty = getpid();
+    setpgid(0, 0);
     zakaz_wstepu = false;
     flag_obsluga_klientow = true;
     
@@ -66,6 +67,7 @@ int main()
     } else if (pid_ratownik1 == 0)
     {
         // Kod ratownika 1 - olimpijski
+        setpgid(0, getppid());
         ktory_basen = 1;
 
         int klienci[X1 + 1];
@@ -121,6 +123,7 @@ int main()
         } else if (pid_ratownik2 == 0)
         {
             // Kod ratownika 2 - rekreacyjny
+            setpgid(0, getppid());
             ktory_basen = 2;
 
             int klienci[2][X2 + 1];
@@ -176,6 +179,7 @@ int main()
             } else if (pid_ratownik3 == 0)
             {
                 // Kod ratownika 3 - brodzik
+                setpgid(0, getppid());
                 ktory_basen = 3;
 
                 int klienci[X3 + 1];
@@ -538,8 +542,11 @@ void* wysylanie_sygnalu(void *arg)
                             wyrzuceni[i - 1] = klienci[i];
                             if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
                             {
-                                perror("sigqueue - SIGUSR1 z basenu nr 1");
-                                exit(EXIT_FAILURE);
+                                if (errno != ESRCH)
+                                {
+                                    perror("sigqueue - SIGUSR1 z basenu nr 1");
+                                    exit(EXIT_FAILURE);
+                                }
                             }
                             klienci[i] = 0;
                         }
@@ -572,8 +579,11 @@ void* wysylanie_sygnalu(void *arg)
                             wyrzuceni[i - 1] = klienci_x2[0][i];
                             if (sigqueue(klienci_x2[0][i], SIGUSR1, sig_data) == -1)
                             {
-                                perror("sigqueue - SIGUSR1 z basenu nr 2");
-                                exit(EXIT_FAILURE);
+                                if (errno != ESRCH)
+                                {
+                                    perror("sigqueue - SIGUSR1 z basenu nr 2");
+                                    exit(EXIT_FAILURE);
+                                }
                             }
                             klienci_x2[0][i] = 0;
                             klienci_x2[1][i] = 0;
@@ -606,8 +616,11 @@ void* wysylanie_sygnalu(void *arg)
                             wyrzuceni[i - 1] = klienci[i];
                             if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
                             {
-                                perror("sigqueue - SIGUSR1 z basenu nr 3");
-                                exit(EXIT_FAILURE);
+                                if (errno != ESRCH)
+                                {
+                                    perror("sigqueue - SIGUSR1 z basenu nr 2");
+                                    exit(EXIT_FAILURE);
+                                }
                             }
                             klienci[i] = 0;
                         }
