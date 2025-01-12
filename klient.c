@@ -21,12 +21,22 @@ volatile bool flag_usuwanie;
 int main(int argc, char *argv[])
 {
     srand(time(NULL));
+
+    if (setpgid(0, 0) == -1)
+    {
+        perror("setpgid - glowny proces klientow");
+        exit(EXIT_FAILURE);
+    }
     
     signal(SIGINT, signal_handler);
     struct sigaction sa;
     sa.sa_sigaction = sigusr_handler;
     sa.sa_flags = SA_SIGINFO;
-    sigemptyset(&sa.sa_mask);
+    if (sigemptyset(&sa.sa_mask) == -1)
+    {
+        perror("sigemptyset - sighandler dla klientow");
+        exit(EXIT_FAILURE);
+    }
 
     if (sigaction(SIGUSR1, &sa, NULL) == -1 || sigaction(SIGUSR2, &sa, NULL) == -1)
     {
@@ -55,17 +65,17 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 7, 0660|IPC_CREAT);
+    semafor = semget(key, 7, 0600|IPC_CREAT);
     if (semafor == -1)
 	{
-		perror("semget - dolaczyc do semafora");
+		perror("semget - dostep do zbioru semaforow");
 		exit(EXIT_FAILURE);
 	}
 
     int shm_id = shmget(key, sizeof(struct dane_klienta), 0600);
     if (shm_id == -1)
     {
-        perror("shmget - tworzenie pamieci wspoldzielonej");
+        perror("shmget - dostep do pamieci wspoldzielonej");
         exit(EXIT_FAILURE);
     }
 
@@ -80,7 +90,7 @@ int main(int argc, char *argv[])
     int shm_czas_id = shmget(key_czas, sizeof(int), 0600);
     if (shm_czas_id == -1)
     {
-        perror("shmget - tworzenie pamieci wspoldzielonej do obługi czasu");
+        perror("shmget - dolaczenie pamieci wspoldzielonej do obługi czasu");
         exit(EXIT_FAILURE);
     }
 
@@ -104,8 +114,11 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL);
-    setpgid(0, 0);
+    if (pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL) != 0)
+    {
+        perror("pthread_create - usuwanie procesow zombie");
+        exit(EXIT_FAILURE);
+    }
 
     // Tworzenie klientow
     while (*((int*)(shm_czas_adres)) < (DOBA - 3600))
@@ -121,19 +134,22 @@ int main(int argc, char *argv[])
                 perror("fork - nowy klient, za duzo procesow");
                 set_color(RESET);
                 printf("[KLIENCI] Ponowna proba utworzenia nowego klienta\n");
-                // exit(EXIT_FAILURE);
             } else if (errno == ENOMEM)
             {
-                perror("fork error - brak pamieci w systemie");
+                perror("fork - brak pamieci w systemie");
                 exit(EXIT_FAILURE);
             } else
             {
-                perror("fork error - nowy klient");
+                perror("fork - nowy klient");
                 exit(EXIT_FAILURE);
             }
         } else if (pid == 0)
         {
-            setpgid(0, getppid());
+            if (setpgid(0, getppid()) == -1)
+            {
+                perror("setpgid - klient");
+                exit(EXIT_FAILURE);
+            }
             semafor_p(semafor, 6);
 
             if (*((int*)(shm_czas_adres)) >= DOBA)
@@ -159,7 +175,7 @@ int main(int argc, char *argv[])
                 set_color(BLUE);
                 printf("[%s VIP PID = %d, wiek: %d] podchodzi do kasy\n", godzina, getpid(), klient.wiek);
                 
-                struct komunikat kom;
+                struct kom_kolejka_vip kom;
                 kom.mtype = KOM_KASJER;
                 kom.ktype = klient.PID;
                 strcpy(kom.mtext, "pokazuje karnet VIP");
@@ -192,7 +208,6 @@ int main(int argc, char *argv[])
 
                 semafor_p(semafor, 1);
                 memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
-                //usleep(1000);
                 semafor_v(semafor, 2);
 
                 semafor_p(semafor, 3);
@@ -204,10 +219,10 @@ int main(int argc, char *argv[])
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(BLUE);
-                printf("[%s KLIENT PID = %d] wchodze do szatni\n", godzina, klient.PID);
+                printf("[%s KLIENT PID = %d] wchodze do kompleksu basenow\n", godzina, klient.PID);
                 
                 ktory_basen = 0;
-                struct komunikat kom;
+                struct kom_ratownik kom;
                 kom.ktype = klient.PID;
                 kom.wiek = klient.wiek;
                 kom.wiek_opiekuna = klient.wiek_opiekuna;
@@ -325,7 +340,7 @@ int main(int argc, char *argv[])
             exit(0);
         }
 
-        // usleep(SEKUNDA * ((rand() % 360) + 120));
+        usleep(SEKUNDA * ((rand() % 360) + 120));
     }
 
 

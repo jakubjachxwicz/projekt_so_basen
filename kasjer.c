@@ -167,7 +167,7 @@ void* klienci_vip()
         exit(EXIT_FAILURE);
     }
 
-	struct komunikat kom;
+	struct kom_kolejka_vip kom;
 
 	while (flag_obsluga_vip)
 	{

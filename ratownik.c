@@ -7,7 +7,7 @@ char godzina[9];
 char* shm_czas_adres;
 pthread_mutex_t mutex_olimp, mutex_rek, mutex_brod;
 pthread_t t_wpuszczanie_klientow, t_wychodzenie_klientow, t_wysylanie_sygnalu;
-struct komunikat kom;
+struct kom_ratownik kom;
 int msq_klient_ratownik, fifo_fd, ktory_basen;
 bool zakaz_wstepu;
 volatile bool flag_obsluga_klientow;

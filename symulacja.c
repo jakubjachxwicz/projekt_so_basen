@@ -39,7 +39,7 @@ int main()
     // 4: okresowe zamykanie
     // 5: klienci VIP
     // 6: kolejka do kompleksu basenow
-    semafor = semget(key, 7, 0660|IPC_CREAT);
+    semafor = semget(key, 7, 0600|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie utworzyc semafora");
@@ -119,7 +119,11 @@ int main()
     }
 
     *shm_czas_adres = 0;
-    pthread_create(&t_czasomierz, NULL, &czasomierz, NULL);
+    if (pthread_create(&t_czasomierz, NULL, &czasomierz, NULL) != 0)
+    {
+        perror("pthread_create - watek do obslugi czasu");
+        exit(EXIT_FAILURE);
+    }
 
     // Inicjowanie kolejek FIFO do obslugi klientow opuszczajacych basen    
     if (mkfifo("fifo_basen_1", 0600) == -1 || mkfifo("fifo_basen_2", 0600) == -1 || mkfifo("fifo_basen_3", 0600) == -1)
@@ -196,13 +200,25 @@ void *czasomierz()
     int *jaki_czas = (int *)shm_czas_adres;
     while (*jaki_czas < 44100 && !stop_time)
     {
-        usleep(SEKUNDA);
+        if (usleep(SEKUNDA) != 0)
+        {
+            if (errno != EINTR)
+            {
+                perror("usleep - czasomierz symulacji");
+                exit(EXIT_FAILURE);
+            }
+        }
         (*jaki_czas)++;
     }
 
-    kill(-pid_klienci, SIGINT);
-    kill(-pid_ratownicy, SIGINT);
-    kill(pid_kasjer, SIGINT);
+    if (kill(-pid_klienci, SIGINT) != 0 || kill(-pid_ratownicy, SIGINT) != 0 || kill(-pid_ratownicy, SIGINT) != 0)
+    {
+        if (errno != ESRCH)
+        {
+            perror("kill - zabijanie procesow po skonczeniu symulacji");
+            exit(EXIT_FAILURE);
+        }
+    }
 
     return 0;
 }
@@ -234,7 +250,11 @@ void czyszczenie()
     else
         printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
-    pthread_join(t_czasomierz, NULL);
+    if (pthread_join(t_czasomierz, NULL) != 0)
+    {
+        perror("pthread_join - watek czasomierza");
+        exit(EXIT_FAILURE);
+    }
 
     if (shmctl(shm_id, IPC_RMID, 0) == -1)
     {
