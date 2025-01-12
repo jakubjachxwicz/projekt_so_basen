@@ -211,11 +211,27 @@ void *czasomierz()
         (*jaki_czas)++;
     }
 
-    if (kill(-pid_klienci, SIGINT) != 0 || kill(-pid_ratownicy, SIGINT) != 0 || kill(-pid_ratownicy, SIGINT) != 0)
+    if (kill(-pid_klienci, SIGINT) != 0)
     {
         if (errno != ESRCH)
         {
-            perror("kill - zabijanie procesow po skonczeniu symulacji");
+            perror("kill - zabijanie procesow klientow po skonczeniu symulacji");
+            exit(EXIT_FAILURE);
+        }
+    }
+    if (kill(-pid_ratownicy, SIGINT) != 0)
+    {
+        if (errno != ESRCH)
+        {
+            perror("kill - zabijanie procesow ratownikow po skonczeniu symulacji");
+            exit(EXIT_FAILURE);
+        }
+    }
+    if (kill(pid_kasjer, SIGINT) != 0)
+    {
+        if (errno != ESRCH)
+        {
+            perror("kill - zabijanie procesu kasjera po skonczeniu symulacji");
             exit(EXIT_FAILURE);
         }
     }

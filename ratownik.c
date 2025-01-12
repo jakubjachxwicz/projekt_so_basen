@@ -221,7 +221,6 @@ int main()
                 }
 
                 pthread_mutex_destroy(&mutex_brod);
-
                 exit(0);
             }
         }
@@ -244,17 +243,31 @@ int main()
 void signal_handler(int sig)
 {
     flag_obsluga_klientow = false;
-
-    if (getpid() == pid_macierzysty)
+    int result;
+    if ((result = pthread_cancel(t_wpuszczanie_klientow)) != 0)
     {
-        kill(pid_ratownik1, SIGINT);
-        kill(pid_ratownik2, SIGINT);
-        kill(pid_ratownik3, SIGINT);
+        if (result != ESRCH)
+        {
+            perror("pthread_cancel - t_wpuszczanie_klientow");
+            exit(EXIT_FAILURE);
+        }
     }
-
-    pthread_cancel(t_wpuszczanie_klientow);
-    pthread_cancel(t_wychodzenie_klientow);
-    pthread_cancel(t_wysylanie_sygnalu);
+    if ((result = pthread_cancel(t_wychodzenie_klientow)) != 0)
+    {
+        if (result != ESRCH)
+        {
+            perror("pthread_cancel - t_wychodzenie_klientow");
+            exit(EXIT_FAILURE);
+        }
+    }
+    if ((result = pthread_cancel(t_wysylanie_sygnalu)) != 0)
+    {
+        if (result != ESRCH)
+        {
+            perror("pthread_cancel - t_wysylanie_sygnalu");
+            exit(EXIT_FAILURE);
+        }
+    }
 }
 
 void* wpuszczanie_klientow_olimpijski(void *arg)
