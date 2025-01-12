@@ -143,3 +143,8 @@ double srednia_wieku(int* tab, int roz, int nowy)
 	double sr = (double)(suma + nowy) / (double)(n + 1);
 	return sr;
 }
+
+void set_color(const char* color) 
+{
+    printf("%s", color);
+}

@@ -23,9 +23,10 @@ int main()
 {
     signal(SIGINT, signal_handler);
     srand(time(NULL));
+
     pid_macierzysty = getpid();
+    setpgid(0, 0);
     zakaz_wstepu = false;
-    
     flag_obsluga_klientow = true;
     
     key_t key_czas = ftok(".", 52);
@@ -66,7 +67,7 @@ int main()
     } else if (pid_ratownik1 == 0)
     {
         // Kod ratownika 1 - olimpijski
-        printf("[RATOWNIK 1 PID = %d]\n", getpid());
+        setpgid(0, getppid());
         ktory_basen = 1;
 
         int klienci[X1 + 1];
@@ -122,7 +123,7 @@ int main()
         } else if (pid_ratownik2 == 0)
         {
             // Kod ratownika 2 - rekreacyjny
-            printf("[RATOWNIK 2 PID = %d]\n", getpid());
+            setpgid(0, getppid());
             ktory_basen = 2;
 
             int klienci[2][X2 + 1];
@@ -178,12 +179,11 @@ int main()
             } else if (pid_ratownik3 == 0)
             {
                 // Kod ratownika 3 - brodzik
-                printf("[RATOWNIK 3 PID = %d]\n", getpid());
+                setpgid(0, getppid());
                 ktory_basen = 3;
 
                 int klienci[X3 + 1];
                 memset(klienci, 0, sizeof(klienci));
-
                 pthread_mutex_init(&mutex_brod, NULL);
 
                 if (pthread_create(&t_wpuszczanie_klientow, NULL, &wpuszczanie_klientow_brodzik, klienci) != 0)
@@ -259,8 +259,6 @@ void signal_handler(int sig)
 
 void* wpuszczanie_klientow_olimpijski(void *arg)
 {
-    pthread_t tid = pthread_self();  // Pobierz ID wątku
-    printf("WPUSZCZANIE DO OLIMPIJSKIEGO ID: %lu\n", tid); 
     int *klienci = (int *)arg;
     int wiek;
     kom.ktype = KOM_RATOWNIK_1;
@@ -293,6 +291,7 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
             klienci[0]++;
             dodaj_do_tablicy(klienci, X1, kom.ktype);
 
+            set_color(RESET);
             printf("****   W olimpijskim:   ****\n");
             for (int i = 1; i <= X1; i++)
                 (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
@@ -312,9 +311,6 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
 
 void* wpuszczanie_klientow_rekreacyjny(void *arg)
 {
-    pthread_t tid = pthread_self();  // Pobierz ID wątku
-    printf("WPUSZCZANIE DO REKREACYJNEGO ID: %lu\n", tid); 
-    
     int (*klienci)[X2 + 1] = (int (*)[X2 + 1])arg;
     int wiek, wiek_opiekuna;
     kom.ktype = KOM_RATOWNIK_2;
@@ -352,6 +348,7 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
             if (wiek_opiekuna)
                 dodaj_do_tablicy_X2(klienci, X2, kom.ktype, wiek_opiekuna);
 
+            set_color(RESET);
             printf("****   W rekreacyjnym:   ****\n");
             for (int i = 1; i <= X2; i++)
                 (i < X2) ? printf("%d, ", klienci[0][i]) : printf("%d\n", klienci[0][i]);
@@ -368,16 +365,11 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
         }
     }
 
-    printf("KONCZYMY WATEK: %lu\n", tid);
-
     return NULL;
 }
 
 void* wpuszczanie_klientow_brodzik(void *arg)
 {
-    pthread_t tid = pthread_self();  // Pobierz ID wątku
-    printf("WPUSZCZANIE DO BRODZIKA ID: %lu\n", tid); 
-    
     int *klienci = (int *)arg;
     int wiek;
     kom.ktype = KOM_RATOWNIK_3;
@@ -410,6 +402,7 @@ void* wpuszczanie_klientow_brodzik(void *arg)
             klienci[0]++;
             dodaj_do_tablicy(klienci, X3, kom.ktype);
 
+            set_color(RESET);
             printf("*****   W brodziku:   *****\n");
             for (int i = 1; i <= X3; i++)
                 (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
@@ -429,9 +422,6 @@ void* wpuszczanie_klientow_brodzik(void *arg)
 
 void* wychodzenie_klientow(void *arg)
 {
-    pthread_t tid = pthread_self();  // Pobierz ID wątku
-    printf("PID = %d, WYCHODZENIE ID: %lu\n", getpid(), tid); 
-    
     while (flag_obsluga_klientow)
     {
         int *klienci = (int *)arg;
@@ -462,11 +452,13 @@ void* wychodzenie_klientow(void *arg)
                 pthread_mutex_lock(&mutex_olimp);
 
                 godz_sym(*((int *)shm_czas_adres), godzina);
+                set_color(MAGENTA);
                 printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
 
                 klienci[0]--;
                 usun_z_tablicy(klienci, X1, pid);
 
+                set_color(RESET);
                 printf("****   W olimpijskim:   ****\n");
                 for (int i = 1; i <= X1; i++)
                     (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
@@ -477,6 +469,7 @@ void* wychodzenie_klientow(void *arg)
                 pthread_mutex_lock(&mutex_rek);
 
                 godz_sym(*((int *)shm_czas_adres), godzina);
+                set_color(MAGENTA);
                 printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
 
                 int (*klienci_x2)[X2 + 1] = (int (*)[X2 + 1])klienci;
@@ -486,6 +479,7 @@ void* wychodzenie_klientow(void *arg)
                 for (int j = 0; j < ile; j++)
                     usun_z_tablicy_X2(klienci_x2, X2, pid);
 
+                set_color(RESET);
                 printf("****   W rekreacyjnym:   ****\n");
                 for (int i = 1; i <= X2; i++)
                     (i < X2) ? printf("%d, ", klienci_x2[0][i]) : printf("%d\n", klienci_x2[0][i]);
@@ -498,11 +492,13 @@ void* wychodzenie_klientow(void *arg)
                 pthread_mutex_lock(&mutex_brod);
 
                 godz_sym(*((int *)shm_czas_adres), godzina);
+                set_color(MAGENTA);
                 printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
 
                 klienci[0]--;
                 usun_z_tablicy(klienci, X3, pid);
 
+                set_color(RESET);
                 printf("*****   W brodziku:   *****\n");
                 for (int i = 1; i <= X3; i++)
                     (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
@@ -510,8 +506,6 @@ void* wychodzenie_klientow(void *arg)
                 pthread_mutex_unlock(&mutex_brod);
                 break;
         }
-
-        usleep(SEKUNDA * 5);
     }
 
     return NULL;
@@ -520,7 +514,6 @@ void* wychodzenie_klientow(void *arg)
 void* wysylanie_sygnalu(void *arg)
 {
     pthread_t tid = pthread_self();  // Pobierz ID wątku
-    printf("PID = %d, SYGNALY ID: %lu\n", getpid(), tid); 
     
     int *klienci = (int *)arg;
     union sigval sig_data;
@@ -532,6 +525,7 @@ void* wysylanie_sygnalu(void *arg)
         if (rand() % 6 == ktory_basen)
         {
             godz_sym(*((int *)shm_czas_adres), godzina);
+            set_color(MAGENTA);
             printf("[%s RATOWNIK %d] wysylam SIGUSR1 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
             
             int wyrzuceni[(ktory_basen == 1 ? X1 : ((ktory_basen == 2) ? X2 : X3))];
@@ -545,13 +539,14 @@ void* wysylanie_sygnalu(void *arg)
                     {
                         if (klienci[i])
                         {
-                            // printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci[i]);
                             wyrzuceni[i - 1] = klienci[i];
-                            // kill(klienci[i], SIGUSR1);
                             if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
                             {
-                                perror("sigqueue - SIGUSR1 z basenu nr 1");
-                                exit(EXIT_FAILURE);
+                                if (errno != ESRCH)
+                                {
+                                    perror("sigqueue - SIGUSR1 z basenu nr 1");
+                                    exit(EXIT_FAILURE);
+                                }
                             }
                             klienci[i] = 0;
                         }
@@ -563,7 +558,6 @@ void* wysylanie_sygnalu(void *arg)
                     for (int i = 0; i < X1; i++)
                         if (wyrzuceni[i])
                         {
-                            // kill(wyrzuceni[i], SIGUSR2);
                             if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
                             {
                                 if (errno != ESRCH)
@@ -582,13 +576,14 @@ void* wysylanie_sygnalu(void *arg)
                     {
                         if (klienci_x2[0][i])
                         {
-                            // printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci_x2[0][i]);
                             wyrzuceni[i - 1] = klienci_x2[0][i];
-                            //kill(klienci_x2[0][i], SIGUSR1);
                             if (sigqueue(klienci_x2[0][i], SIGUSR1, sig_data) == -1)
                             {
-                                perror("sigqueue - SIGUSR1 z basenu nr 2");
-                                exit(EXIT_FAILURE);
+                                if (errno != ESRCH)
+                                {
+                                    perror("sigqueue - SIGUSR1 z basenu nr 2");
+                                    exit(EXIT_FAILURE);
+                                }
                             }
                             klienci_x2[0][i] = 0;
                             klienci_x2[1][i] = 0;
@@ -601,7 +596,6 @@ void* wysylanie_sygnalu(void *arg)
                     for (int i = 0; i < X2; i++)
                         if (wyrzuceni[i] != 0)
                         {
-                            // kill(wyrzuceni[i], SIGUSR2);
                             if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
                             {
                                 if (errno != ESRCH)
@@ -619,13 +613,14 @@ void* wysylanie_sygnalu(void *arg)
                     {
                         if (klienci[i])
                         {
-                            // printf("WYSYLAM SIGUSR1 do PID = %d\n", klienci[i]);
                             wyrzuceni[i - 1] = klienci[i];
-                            //kill(klienci[i], SIGUSR1);
                             if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
                             {
-                                perror("sigqueue - SIGUSR1 z basenu nr 3");
-                                exit(EXIT_FAILURE);
+                                if (errno != ESRCH)
+                                {
+                                    perror("sigqueue - SIGUSR1 z basenu nr 2");
+                                    exit(EXIT_FAILURE);
+                                }
                             }
                             klienci[i] = 0;
                         }
@@ -637,7 +632,6 @@ void* wysylanie_sygnalu(void *arg)
                     for (int i = 0; i < X3; i++)
                         if (wyrzuceni[i] != 0)
                         {
-                            // kill(wyrzuceni[i], SIGUSR2);
                             if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
                             {
                                 if (errno != ESRCH)
@@ -651,6 +645,7 @@ void* wysylanie_sygnalu(void *arg)
             }
 
             godz_sym(*((int *)shm_czas_adres), godzina);
+            set_color(MAGENTA);
             printf("[%s RATOWNIK %d] wysylam SIGUSR2 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
             zakaz_wstepu = false;
         }
