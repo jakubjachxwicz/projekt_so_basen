@@ -22,6 +22,7 @@ void signal_handler(int sig);
 int main()
 {
     signal(SIGINT, signal_handler);
+    signal(SIGTSTP, SIG_DFL);
     srand(time(NULL));
 
     pid_macierzysty = getpid();
@@ -71,6 +72,7 @@ int main()
     } else if (pid_ratownik1 == 0)
     {
         // Kod ratownika 1 - olimpijski
+        signal(SIGTSTP, SIG_DFL);
         if (setpgid(0, getppid()) == -1)
         {
             perror("setpgid - proces ratownika 1");
@@ -113,6 +115,7 @@ int main()
         } else if (pid_ratownik2 == 0)
         {
             // Kod ratownika 2 - rekreacyjny
+            signal(SIGTSTP, SIG_DFL);
             if (setpgid(0, getppid()) == -1)
             {
                 perror("setpgid - proces ratownika 2");
@@ -155,6 +158,7 @@ int main()
             } else if (pid_ratownik3 == 0)
             {
                 // Kod ratownika 3 - brodzik
+                signal(SIGTSTP, SIG_DFL);
                 if (setpgid(0, getppid()) == -1)
                 {
                     perror("setpgid - proces ratownika 3");

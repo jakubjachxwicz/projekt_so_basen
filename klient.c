@@ -146,6 +146,7 @@ int main(int argc, char *argv[])
             }
         } else if (pid == 0)
         {
+            signal(SIGTSTP, SIG_DFL);
             if (setpgid(0, getppid()) == -1)
             {
                 perror("setpgid - klient");
@@ -153,7 +154,7 @@ int main(int argc, char *argv[])
             }
             semafor_p(semafor, 6);
 
-            if (*((int*)(shm_czas_adres)) >= DOBA)
+            if (*((int*)(shm_czas_adres)) > DOBA - 3600)
             {
                 semafor_v(semafor, 6);
                 exit(0);
@@ -175,7 +176,6 @@ int main(int argc, char *argv[])
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(BLUE);
                 printf("[%s VIP PID = %d, wiek: %d] podchodzi do kasy\n", godzina, getpid(), klient.wiek);
-                
                 struct kom_kolejka_vip kom;
                 kom.mtype = KOM_KASJER;
                 kom.ktype = klient.PID;

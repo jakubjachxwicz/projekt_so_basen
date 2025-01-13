@@ -16,6 +16,8 @@ int shm_id, shm_czas_id, semafor, msq_kolejka_vip, msq_klient_ratownik;
 int main()
 {
     signal(SIGINT, signal_handler);
+    signal(SIGTSTP, signal_handler);
+    signal(SIGCONT, signal_handler);
     stop_time = false;
     
     // Inicjowanie semaforkow
@@ -219,19 +221,19 @@ void *czasomierz()
             exit(EXIT_FAILURE);
         }
     }
-    if (kill(-pid_ratownicy, SIGINT) != 0)
-    {
-        if (errno != ESRCH)
-        {
-            perror("kill - zabijanie procesow ratownikow po skonczeniu symulacji");
-            exit(EXIT_FAILURE);
-        }
-    }
     if (kill(pid_kasjer, SIGINT) != 0)
     {
         if (errno != ESRCH)
         {
             perror("kill - zabijanie procesu kasjera po skonczeniu symulacji");
+            exit(EXIT_FAILURE);
+        }
+    }
+    if (kill(-pid_ratownicy, SIGINT) != 0)
+    {
+        if (errno != ESRCH)
+        {
+            perror("kill - zabijanie procesow ratownikow po skonczeniu symulacji");
             exit(EXIT_FAILURE);
         }
     }
@@ -248,23 +250,23 @@ void czyszczenie()
     finished = waitpid(pid_klienci, &status, 0);
     if (finished == -1) perror("wait - klienci");  
     else if (WIFEXITED(status)) 
-        printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
+        printf("Proces klientow (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
     else
-        printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
+        printf("Proces klientow (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
     finished = waitpid(pid_kasjer, &status, 0);
     if (finished == -1) perror("wait - kasjer");  
     else if (WIFEXITED(status)) 
-        printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
+        printf("Proces kasjera (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
     else
-        printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
+        printf("Proces kasjera (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
     finished = waitpid(pid_ratownicy, &status, 0);
     if (finished == -1) perror("wait - ratownicy");  
     else if (WIFEXITED(status)) 
-        printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
+        printf("Proces ratownikow (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
     else
-        printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
+        printf("Proces ratownikow (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
     if (pthread_join(t_czasomierz, NULL) != 0)
     {
@@ -309,5 +311,17 @@ void signal_handler(int sig)
         
         czyszczenie();
         exit(0);
+    }
+    if (sig == SIGTSTP)
+    {
+        kill(-pid_ratownicy, SIGTSTP);
+        kill(-pid_klienci, SIGTSTP);
+
+        raise(SIGSTOP);
+    }
+    if (sig == SIGCONT)
+    {
+        kill(-pid_ratownicy, SIGCONT);
+        kill(-pid_klienci, SIGCONT);
     }
 }
