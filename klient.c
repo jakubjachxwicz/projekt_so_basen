@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
                 if (strcmp(kom.mtext, "zapraszam") == 0)
                 {
                     klient.wpuszczony = true;
-                    klient.godz_wyjscia = (*((int *)shm_czas_adres)) + 3600;
+                    klient.godz_wyjscia = kom.czas_wyjscia;
                 }
                 else
                     klient.wpuszczony = false;
@@ -282,14 +282,7 @@ int main(int argc, char *argv[])
                         }
                     }
 
-                    if (usleep(SEKUNDA * 180) != 0)
-                    {
-                        if (errno != EINTR)
-                        {
-                            perror("usleep - cykl zycia klienta");
-                            exit(EXIT_FAILURE);
-                        }
-                    }
+                    my_sleep(SEKUNDA * 120);
                 }
             } else
             {
@@ -308,14 +301,7 @@ int main(int argc, char *argv[])
             exit(0);
         }
 
-        if (usleep(SEKUNDA * ((rand() % 360) + 120)) != 0)
-        {
-            if (errno != EINTR)
-            {
-                perror("usleep - czeanie na utworzenie nowego klienta");
-                exit(EXIT_FAILURE);
-            }
-        }
+        my_sleep(SEKUNDA * ((rand() % 360) + 120));
     }
 
     flag_usuwanie = false;

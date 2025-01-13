@@ -15,7 +15,7 @@
 // 2500 - 1 min 48 s + 7 s
 // 1250 - 54 s + 7 s
 // 1667 - 1 min 12 s + 7 s
-#define SEKUNDA 6000
+#define SEKUNDA 5002
 #define GODZINA 3600
 #define DOBA 43200
 
@@ -60,4 +60,5 @@ struct kom_kolejka_vip
     long mtype;
     pid_t ktype;
     char mtext[MTEXT_MAX];
+    int czas_wyjscia;
 };
