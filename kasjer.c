@@ -248,7 +248,7 @@ void* okresowe_zamkniecie()
 
 	godz_sym(*((int *)shm_czas_adres), godzina);
 	set_color(CYAN);
-	printf("[%s KASJER] KOMPLEKT BASENOW ZAMKNIETY, OTWARCIE ZA GODZINE\n", godzina);
+	printf("[%s KASJER] KOMPLEKS BASENOW ZAMKNIETY, OTWARCIE ZA GODZINE\n", godzina);
 
 	// Czeka godzine od wyjscia ostatniego klienta
 	while ((czas = *((int *)shm_czas_adres)) < ostatni_klient_czas_wyjscia + GODZINA)

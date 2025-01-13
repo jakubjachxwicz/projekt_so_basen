@@ -178,3 +178,12 @@ void my_sleep(int qs)
 		}
 	}
 }
+
+void simple_error_handler(int status, const char *msg)
+{
+	if (status != 0)
+	{
+		fprintf(stderr, "%s, status: %d\n", msg, status);
+        exit(EXIT_FAILURE);
+	}
+}

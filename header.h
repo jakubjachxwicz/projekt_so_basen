@@ -15,7 +15,7 @@
 // 2500 - 1 min 48 s + 7 s
 // 1250 - 54 s + 7 s
 // 1667 - 1 min 12 s + 7 s
-#define SEKUNDA 5002
+#define SEKUNDA 4200
 #define GODZINA 3600
 #define DOBA 43200
 
