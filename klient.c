@@ -21,12 +21,23 @@ volatile bool flag_usuwanie;
 int main(int argc, char *argv[])
 {
     srand(time(NULL));
+
+    if (setpgid(0, 0) == -1)
+    {
+        perror("setpgid - glowny proces klientow");
+        exit(EXIT_FAILURE);
+    }
     
     signal(SIGINT, signal_handler);
+
     struct sigaction sa;
     sa.sa_sigaction = sigusr_handler;
     sa.sa_flags = SA_SIGINFO;
-    sigemptyset(&sa.sa_mask);
+    if (sigemptyset(&sa.sa_mask) == -1)
+    {
+        perror("sigemptyset - sighandler dla klientow");
+        exit(EXIT_FAILURE);
+    }
 
     if (sigaction(SIGUSR1, &sa, NULL) == -1 || sigaction(SIGUSR2, &sa, NULL) == -1)
     {
@@ -55,17 +66,17 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 7, 0660|IPC_CREAT);
+    semafor = semget(key, 7, 0600|IPC_CREAT);
     if (semafor == -1)
 	{
-		perror("semget - dolaczyc do semafora");
+		perror("semget - dostep do zbioru semaforow");
 		exit(EXIT_FAILURE);
 	}
 
     int shm_id = shmget(key, sizeof(struct dane_klienta), 0600);
     if (shm_id == -1)
     {
-        perror("shmget - tworzenie pamieci wspoldzielonej");
+        perror("shmget - dostep do pamieci wspoldzielonej");
         exit(EXIT_FAILURE);
     }
 
@@ -80,7 +91,7 @@ int main(int argc, char *argv[])
     int shm_czas_id = shmget(key_czas, sizeof(int), 0600);
     if (shm_czas_id == -1)
     {
-        perror("shmget - tworzenie pamieci wspoldzielonej do obługi czasu");
+        perror("shmget - dolaczenie pamieci wspoldzielonej do obługi czasu");
         exit(EXIT_FAILURE);
     }
 
@@ -104,8 +115,11 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL);
-    setpgid(0, 0);
+    if (pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL) != 0)
+    {
+        perror("pthread_create - usuwanie procesow zombie");
+        exit(EXIT_FAILURE);
+    }
 
     // Tworzenie klientow
     while (*((int*)(shm_czas_adres)) < (DOBA - 3600))
@@ -121,19 +135,22 @@ int main(int argc, char *argv[])
                 perror("fork - nowy klient, za duzo procesow");
                 set_color(RESET);
                 printf("[KLIENCI] Ponowna proba utworzenia nowego klienta\n");
-                // exit(EXIT_FAILURE);
             } else if (errno == ENOMEM)
             {
-                perror("fork error - brak pamieci w systemie");
+                perror("fork - brak pamieci w systemie");
                 exit(EXIT_FAILURE);
             } else
             {
-                perror("fork error - nowy klient");
+                perror("fork - nowy klient");
                 exit(EXIT_FAILURE);
             }
         } else if (pid == 0)
         {
-            setpgid(0, getppid());
+            if (setpgid(0, getppid()) == -1)
+            {
+                perror("setpgid - klient");
+                exit(EXIT_FAILURE);
+            }
             semafor_p(semafor, 6);
 
             if (*((int*)(shm_czas_adres)) >= DOBA)
@@ -159,7 +176,7 @@ int main(int argc, char *argv[])
                 set_color(BLUE);
                 printf("[%s VIP PID = %d, wiek: %d] podchodzi do kasy\n", godzina, getpid(), klient.wiek);
                 
-                struct komunikat kom;
+                struct kom_kolejka_vip kom;
                 kom.mtype = KOM_KASJER;
                 kom.ktype = klient.PID;
                 strcpy(kom.mtext, "pokazuje karnet VIP");
@@ -179,7 +196,7 @@ int main(int argc, char *argv[])
                 if (strcmp(kom.mtext, "zapraszam") == 0)
                 {
                     klient.wpuszczony = true;
-                    klient.godz_wyjscia = (*((int *)shm_czas_adres)) + 3600;
+                    klient.godz_wyjscia = kom.czas_wyjscia;
                 }
                 else
                     klient.wpuszczony = false;
@@ -192,7 +209,6 @@ int main(int argc, char *argv[])
 
                 semafor_p(semafor, 1);
                 memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
-                //usleep(1000);
                 semafor_v(semafor, 2);
 
                 semafor_p(semafor, 3);
@@ -204,10 +220,10 @@ int main(int argc, char *argv[])
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(BLUE);
-                printf("[%s KLIENT PID = %d] wchodze do szatni\n", godzina, klient.PID);
+                printf("[%s KLIENT PID = %d] wchodze do kompleksu basenow\n", godzina, klient.PID);
                 
                 ktory_basen = 0;
-                struct komunikat kom;
+                struct kom_ratownik kom;
                 kom.ktype = klient.PID;
                 kom.wiek = klient.wiek;
                 kom.wiek_opiekuna = klient.wiek_opiekuna;
@@ -229,76 +245,36 @@ int main(int argc, char *argv[])
 
                     if (!ktory_basen)
                     {
+                        // Klient wybiera, na ktory basen chce wejsc
                         choice = (rand() % 3) + 1;
                         while (zakaz_wejscia[choice - 1])
                             choice = (rand() % 3) + 1;
                         godz_sym(*((int *)shm_czas_adres), godzina);
                         set_color(YELLOW);
                         printf("[%s KLIENT PID = %d] chce wejsc na basen: %d\n", godzina, klient.PID, choice);
-                        if (choice == 1)
-                        {
-                            kom.mtype = KOM_RATOWNIK_1;
-                            if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
-                            {
-                                perror("msgsnd - wysylanie komunikatu do wejscia do basenu olimpijskiego");
-                                exit(EXIT_FAILURE);
-                            }
-                            if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), kom.ktype, 0) == -1)
-                            {
-                                perror("msgrcv - odbieranie komunikatu do wejscia do basenu olimpijskiego");
-                                exit(EXIT_FAILURE);
-                            }
 
-                            if (strcmp(kom.mtext, "ok") == 0)
-                            {
-                                ktory_basen = 1;
-                                godz_sym(*((int *)shm_czas_adres), godzina);
-                                set_color(GREEN);
-                                printf("[%s KLIENT PID = %d] wchodze do basenu olimpijskiego\n", godzina, klient.PID);
-                            }
-                        } else if (choice == 2)
+                        // Wysyla komunikat do ratownika
+                        kom.mtype = choice + 2;
+                        if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
                         {
-                            kom.mtype = KOM_RATOWNIK_2;
-                            if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
-                            {
-                                perror("msgsnd - wysylanie komunikatu do wejscia do basenu rekreacyjnego");
-                                exit(EXIT_FAILURE);
-                            }
-                            if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), kom.ktype, 0) == -1)
-                            {
-                                perror("msgrcv - odbieranie komunikatu do wejscia do basenu rekreacyjnego");
-                                exit(EXIT_FAILURE);
-                            }
-
-                            if (strcmp(kom.mtext, "ok") == 0)
-                            {
-                                ktory_basen = 2;
-                                godz_sym(*((int *)shm_czas_adres), godzina);
-                                set_color(GREEN);
-                                printf("[%s KLIENT PID = %d] wchodze do basenu rekreacyjnego\n", godzina, klient.PID);
-                            }
-                        } else if (choice == 3)
-                        {
-                            kom.mtype = KOM_RATOWNIK_3;
-                            if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
-                            {
-                                perror("msgsnd - wysylanie komunikatu do wejscia do brodzika");
-                                exit(EXIT_FAILURE);
-                            }
-                            if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), kom.ktype, 0) == -1)
-                            {
-                                perror("msgrcv - odbieranie komunikatu do wejscia do brodzika");
-                                exit(EXIT_FAILURE);
-                            }
-
-                            if (strcmp(kom.mtext, "ok") == 0)
-                            {
-                                ktory_basen = 3;
-                                godz_sym(*((int *)shm_czas_adres), godzina);
-                                set_color(GREEN);
-                                printf("[%s KLIENT PID = %d] wchodze do brodzika\n", godzina, klient.PID);
-                            }
+                            perror("msgsnd - wysylanie komunikatu do wejscia do basenu");
+                            exit(EXIT_FAILURE);
                         }
+                        if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), kom.ktype, 0) == -1)
+                        {
+                            perror("msgrcv - odbieranie komunikatu do wejscia do basenu");
+                            exit(EXIT_FAILURE);
+                        }
+
+                        // Sprawdza wiadomosc zwrotna
+                        if (strcmp(kom.mtext, "ok") == 0)
+                        {
+                            ktory_basen = choice;
+                            godz_sym(*((int *)shm_czas_adres), godzina);
+                            set_color(GREEN);
+                            printf("[%s KLIENT PID = %d] wchodze do basenu nr %d\n", godzina, klient.PID, ktory_basen);
+                        }
+
                         if (!ktory_basen)
                         {
                             set_color(RED);
@@ -306,16 +282,16 @@ int main(int argc, char *argv[])
                         }
                     }
 
-                    usleep(SEKUNDA * 180);
+                    my_sleep(SEKUNDA * 120);
                 }
             } else
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(RED);
-                printf("[%s KLIENT PID = %d] nie wpuszczono mnie do kompleksu basenowego\n", godzina, getpid());
+                printf("[%s KLIENT PID = %d] nie wpuszczono mnie do kompleksu basenow\n", godzina, getpid());
             }
 
-            if (shmdt(shm_adres) == -1)
+            if (shmdt(shm_adres) == -1 || shmdt(shm_czas_adres) == -1)
             {
                 perror("shmdt - problem z odlaczeniem pamieci od procesu");
                 exit(EXIT_FAILURE);
@@ -325,17 +301,17 @@ int main(int argc, char *argv[])
             exit(0);
         }
 
-        // usleep(SEKUNDA * ((rand() % 360) + 120));
+        my_sleep(SEKUNDA * ((rand() % 360) + 120));
     }
 
-
-    while (wait(NULL) != -1) {}
     flag_usuwanie = false;
-    pthread_join(t_usuwanie_procesow, NULL);
+    if (pthread_join(t_usuwanie_procesow, NULL) != 0)
+    {
+        perror("pthread_join - watek usuwajacy procesy zombie");
+        exit(EXIT_FAILURE);
+    }
 
-    kill(pid_ratownicy, SIGINT);
-    kill(pid_kasjer, SIGINT);
-
+    while (wait(NULL) != -1) { }
     exit(0);
 }
 
@@ -343,7 +319,7 @@ void signal_handler(int sig)
 {
     if (sig == SIGINT)
     {
-        while (wait(NULL) != -1) {}
+        while (wait(NULL) != -1) { }
         exit(0);
     }
 }
@@ -367,7 +343,16 @@ void sigusr_handler(int sig, siginfo_t *info, void *context)
 void *usuwanie_procesow()
 {
     while (flag_usuwanie)
-        wait(NULL);
+    {
+        if (wait(NULL) == -1) 
+        {
+            if (errno != ECHILD)
+            {
+                perror("wait - usuwanie procesow zombie");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
 
     return 0;
 }
@@ -395,6 +380,10 @@ void opuszczenie_basenu()
         perror("write - pisanie do FIFO (klient)");
         exit(EXIT_FAILURE);
     }
-    close(fd);
+    if (close(fd) == -1)
+    {
+        perror("close - zamkniecie fifo (klient)");
+        exit(EXIT_FAILURE);
+    }
     semafor_v(semafor, 0);
 }

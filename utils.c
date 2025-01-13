@@ -148,3 +148,42 @@ void set_color(const char* color)
 {
     printf("%s", color);
 }
+
+void lock_mutex(pthread_mutex_t *mutex)
+{
+	if (pthread_mutex_lock(mutex) != 0)
+	{
+		perror("pthread_mutex_lock - problem z zablokowaniem mutexa");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void unlock_mutex(pthread_mutex_t *mutex)
+{
+	if (pthread_mutex_unlock(mutex) != 0)
+	{
+		perror("pthread_mutex_lock - problem z odblokowaniem mutexa");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void my_sleep(int qs)
+{
+	if (usleep(qs) != 0)
+	{
+		if (errno != EINTR)
+		{
+			perror("usleep");
+			exit(EXIT_FAILURE);
+		}
+	}
+}
+
+void simple_error_handler(int status, const char *msg)
+{
+	if (status != 0)
+	{
+		fprintf(stderr, "%s, status: %d\n", msg, status);
+        exit(EXIT_FAILURE);
+	}
+}

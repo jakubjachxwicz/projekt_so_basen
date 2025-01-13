@@ -7,7 +7,7 @@ char godzina[9];
 char* shm_czas_adres;
 pthread_mutex_t mutex_olimp, mutex_rek, mutex_brod;
 pthread_t t_wpuszczanie_klientow, t_wychodzenie_klientow, t_wysylanie_sygnalu;
-struct komunikat kom;
+struct kom_ratownik kom;
 int msq_klient_ratownik, fifo_fd, ktory_basen;
 bool zakaz_wstepu;
 volatile bool flag_obsluga_klientow;
@@ -25,7 +25,11 @@ int main()
     srand(time(NULL));
 
     pid_macierzysty = getpid();
-    setpgid(0, 0);
+    if (setpgid(0, 0) == -1)
+    {
+        perror("setpgid - glowny proces ratownikow");
+        exit(EXIT_FAILURE);
+    }
     zakaz_wstepu = false;
     flag_obsluga_klientow = true;
     
@@ -67,49 +71,35 @@ int main()
     } else if (pid_ratownik1 == 0)
     {
         // Kod ratownika 1 - olimpijski
-        setpgid(0, getppid());
+        if (setpgid(0, getppid()) == -1)
+        {
+            perror("setpgid - proces ratownika 1");
+            exit(EXIT_FAILURE);
+        }
         ktory_basen = 1;
 
-        int klienci[X1 + 1];
+        int klienci[X1 + 1], status;
         memset(klienci, 0, sizeof(klienci));  
 
-        pthread_mutex_init(&mutex_olimp, NULL);
+        status = pthread_mutex_init(&mutex_olimp, NULL);
+        simple_error_handler(status, "pthread_mutex_init - mutex_olimp");
 
-        if (pthread_create(&t_wpuszczanie_klientow, NULL, &wpuszczanie_klientow_olimpijski, klienci) != 0)
-        {
-            perror("pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
-            exit(EXIT_FAILURE);
-        }
+        status = pthread_create(&t_wpuszczanie_klientow, NULL, &wpuszczanie_klientow_olimpijski, klienci);
+        simple_error_handler(status, "pthread_create - tworzenie watku do wpuszczania klientow do basenu olimpijskiego");
+        status = pthread_create(&t_wysylanie_sygnalu, NULL, &wysylanie_sygnalu, klienci);
+        simple_error_handler(status, "pthread_create - tworzenie watku do wysylania sygnalow");
+        status = pthread_create(&t_wychodzenie_klientow, NULL, &wychodzenie_klientow, klienci);
+        simple_error_handler(status, "pthread_create - tworzenie watku do wpuszczania klientow do basenu olimpijskiego");
 
-        if (pthread_create(&t_wysylanie_sygnalu, NULL, &wysylanie_sygnalu, klienci) != 0)
-        {
-            perror("pthread_create - tworzenie watku do wysylania sygnalow");
-            exit(EXIT_FAILURE);
-        }
+        status = pthread_join(t_wysylanie_sygnalu, NULL);
+        simple_error_handler(status, "pthread_join - ratownik 1 t_wysylanie_sygnalu");
+        status = pthread_join(t_wpuszczanie_klientow, NULL);
+        simple_error_handler(status, "pthread_join - ratownik 1 t_wpuszczanie_klientow");
+        status = pthread_join(t_wychodzenie_klientow, NULL);
+        simple_error_handler(status, "pthread_join - ratownik 1 t_wychodzenie_klientow");
 
-        if (pthread_create(&t_wychodzenie_klientow, NULL, &wychodzenie_klientow, klienci) != 0)
-        {
-            perror("pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
-            exit(EXIT_FAILURE);
-        }
-
-        if (pthread_join(t_wysylanie_sygnalu, NULL) != 0)
-        {
-            perror("pthread_join - ratownik 1t_wysylanie_sygnalu");
-            exit(EXIT_FAILURE);
-        }
-        if (pthread_join(t_wpuszczanie_klientow, NULL) != 0)
-        {
-            perror("pthread_join - ratownik 1 t_wpuszczanie_klientow");
-            exit(EXIT_FAILURE);
-        }
-        if (pthread_join(t_wychodzenie_klientow, NULL) != 0)
-        {
-            perror("pthread_join - ratownik 1 t_wychodzenie_klientow");
-            exit(EXIT_FAILURE);
-        }
-
-        pthread_mutex_destroy(&mutex_olimp);
+        status = pthread_mutex_destroy(&mutex_olimp);
+        simple_error_handler(status, "pthread_mutex_destroy - mutex_olimp");
 
         exit(0);
     }
@@ -123,49 +113,35 @@ int main()
         } else if (pid_ratownik2 == 0)
         {
             // Kod ratownika 2 - rekreacyjny
-            setpgid(0, getppid());
+            if (setpgid(0, getppid()) == -1)
+            {
+                perror("setpgid - proces ratownika 2");
+                exit(EXIT_FAILURE);
+            }
             ktory_basen = 2;
 
-            int klienci[2][X2 + 1];
+            int klienci[2][X2 + 1], status;
             memset(klienci, 0, sizeof(klienci));
 
-            pthread_mutex_init(&mutex_rek, NULL);
+            status = pthread_mutex_init(&mutex_rek, NULL);
+            simple_error_handler(status, "pthread_mutex_init - mutex_rek");
 
-            if (pthread_create(&t_wpuszczanie_klientow, NULL, &wpuszczanie_klientow_rekreacyjny, klienci) != 0)
-            {
-                perror("pthread_create - tworzenie watku do wpuszczania klientow do basenu rekreacyjnego");
-                exit(EXIT_FAILURE);
-            }
+            status = pthread_create(&t_wpuszczanie_klientow, NULL, &wpuszczanie_klientow_rekreacyjny, klienci);
+            simple_error_handler(status, "pthread_create - tworzenie watku do wpuszczania klientow do basenu rekreacyjnego");
+            status = pthread_create(&t_wysylanie_sygnalu, NULL, &wysylanie_sygnalu, klienci);
+            simple_error_handler(status, "pthread_create - tworzenie watku do wysylania sygnalow");
+            status = pthread_create(&t_wychodzenie_klientow, NULL, &wychodzenie_klientow, klienci);
+            simple_error_handler(status, "pthread_create - tworzenie watku do wpuszczania klientow do basenu rekreacyjnego");
 
-            if (pthread_create(&t_wysylanie_sygnalu, NULL, &wysylanie_sygnalu, klienci) != 0)
-            {
-                perror("pthread_create - tworzenie watku do wysylania sygnalow");
-                exit(EXIT_FAILURE);
-            }
+            status = pthread_join(t_wysylanie_sygnalu, NULL);
+            simple_error_handler(status, "pthread_join - ratownik 2 t_wysylanie_sygnalu");
+            status = pthread_join(t_wpuszczanie_klientow, NULL);
+            simple_error_handler(status, "pthread_join - ratownik 2 t_wpuszczanie_klientow");
+            status = pthread_join(t_wychodzenie_klientow, NULL);
+            simple_error_handler(status, "pthread_join - ratownik 2 t_wychodzenie_klientow");
 
-            if (pthread_create(&t_wychodzenie_klientow, NULL, &wychodzenie_klientow, klienci) != 0)
-            {
-                perror("pthread_create - tworzenie watku do wpuszczania klientow do basenu rekreacyjnego");
-                exit(EXIT_FAILURE);
-            }
-
-            if (pthread_join(t_wysylanie_sygnalu, NULL) != 0)
-            {
-                perror("pthread_join - ratownik 2 t_wysylanie_sygnalu");
-                exit(EXIT_FAILURE);
-            }
-            if (pthread_join(t_wpuszczanie_klientow, NULL) != 0)
-            {
-                perror("pthread_join - ratownik 2 t_wpuszczanie_klientow");
-                exit(EXIT_FAILURE);
-            }
-            if (pthread_join(t_wychodzenie_klientow, NULL) != 0)
-            {
-                perror("pthread_join - ratownik 2 t_wychodzenie_klientow");
-                exit(EXIT_FAILURE);
-            }
-
-            pthread_mutex_destroy(&mutex_rek);
+            status = pthread_mutex_destroy(&mutex_rek);
+            simple_error_handler(status, "pthread_mutex_destroy - mutex_rek");
 
             exit(0);
         }
@@ -179,58 +155,56 @@ int main()
             } else if (pid_ratownik3 == 0)
             {
                 // Kod ratownika 3 - brodzik
-                setpgid(0, getppid());
+                if (setpgid(0, getppid()) == -1)
+                {
+                    perror("setpgid - proces ratownika 3");
+                    exit(EXIT_FAILURE);
+                }
                 ktory_basen = 3;
 
-                int klienci[X3 + 1];
+                int klienci[X3 + 1], status;
                 memset(klienci, 0, sizeof(klienci));
-                pthread_mutex_init(&mutex_brod, NULL);
 
-                if (pthread_create(&t_wpuszczanie_klientow, NULL, &wpuszczanie_klientow_brodzik, klienci) != 0)
-                {
-                    perror("pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
-                    exit(EXIT_FAILURE);
-                }
+                status = pthread_mutex_init(&mutex_brod, NULL);
+                simple_error_handler(status, "pthread_mutex_init - mutex_brod");
 
-                if (pthread_create(&t_wysylanie_sygnalu, NULL, &wysylanie_sygnalu, klienci) != 0)
-                {
-                    perror("pthread_create - tworzenie watku do wysylania sygnalow");
-                    exit(EXIT_FAILURE);
-                }
+                status = pthread_create(&t_wpuszczanie_klientow, NULL, &wpuszczanie_klientow_brodzik, klienci);
+                simple_error_handler(status, "pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
+                status = pthread_create(&t_wysylanie_sygnalu, NULL, &wysylanie_sygnalu, klienci);
+                simple_error_handler(status, "pthread_create - tworzenie watku do wysylania sygnalow");
+                status = pthread_create(&t_wychodzenie_klientow, NULL, &wychodzenie_klientow, klienci);
+                simple_error_handler(status, "pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
 
-                if (pthread_create(&t_wychodzenie_klientow, NULL, &wychodzenie_klientow, klienci) != 0)
-                {
-                    perror("pthread_create - tworzenie watku do wpuszczania klientow do brodzika");
-                    exit(EXIT_FAILURE);
-                }
+                status = pthread_join(t_wysylanie_sygnalu, NULL);
+                simple_error_handler(status, "pthread_join - ratownik 3 t_wysylanie_sygnalu");
+                status = pthread_join(t_wpuszczanie_klientow, NULL);
+                simple_error_handler(status, "pthread_join - ratownik 3 t_wpuszczanie_klientow");
+                status = pthread_join(t_wychodzenie_klientow, NULL);
+                simple_error_handler(status, "pthread_join - ratownik 3 t_wychodzenie_klientow");
 
-                if (pthread_join(t_wysylanie_sygnalu, NULL) != 0)
-                {
-                    perror("pthread_join - ratownik 3 t_wysylanie_sygnalu");
-                    exit(EXIT_FAILURE);
-                }
-                if (pthread_join(t_wpuszczanie_klientow, NULL) != 0)
-                {
-                    perror("pthread_join - ratownik 3 t_wpuszczanie_klientow");
-                    exit(EXIT_FAILURE);
-                }
-                if (pthread_join(t_wychodzenie_klientow, NULL) != 0)
-                {
-                    perror("pthread_join - ratownik 3 t_wychodzenie_klientow");
-                    exit(EXIT_FAILURE);
-                }
-
-                pthread_mutex_destroy(&mutex_brod);
+                status = pthread_mutex_destroy(&mutex_brod);
+                simple_error_handler(status, "pthread_mutex_destroy - mutex_brod");
 
                 exit(0);
             }
         }
     }
 
-
-    waitpid(pid_ratownik1, NULL, 0);
-    waitpid(pid_ratownik2, NULL, 0);
-    waitpid(pid_ratownik3, NULL, 0);
+    if (waitpid(pid_ratownik1, NULL, 0) == -1)
+    {
+        perror("waitpid - pid_ratownik1");
+        exit(EXIT_FAILURE);
+    }
+    if (waitpid(pid_ratownik2, NULL, 0) == -1)
+    {
+        perror("waitpid - pid_ratownik2");
+        exit(EXIT_FAILURE);
+    }
+    if (waitpid(pid_ratownik3, NULL, 0) == -1)
+    {
+        perror("waitpid - pid_ratownik3");
+        exit(EXIT_FAILURE);
+    }
 
     if (shmdt(shm_czas_adres) == -1)
 	{
@@ -244,17 +218,31 @@ int main()
 void signal_handler(int sig)
 {
     flag_obsluga_klientow = false;
-
-    if (getpid() == pid_macierzysty)
+    int result;
+    if ((result = pthread_cancel(t_wpuszczanie_klientow)) != 0)
     {
-        kill(pid_ratownik1, SIGINT);
-        kill(pid_ratownik2, SIGINT);
-        kill(pid_ratownik3, SIGINT);
+        if (result != ESRCH)
+        {
+            perror("pthread_cancel - t_wpuszczanie_klientow");
+            exit(EXIT_FAILURE);
+        }
     }
-
-    pthread_cancel(t_wpuszczanie_klientow);
-    pthread_cancel(t_wychodzenie_klientow);
-    pthread_cancel(t_wysylanie_sygnalu);
+    if ((result = pthread_cancel(t_wychodzenie_klientow)) != 0)
+    {
+        if (result != ESRCH)
+        {
+            perror("pthread_cancel - t_wychodzenie_klientow");
+            exit(EXIT_FAILURE);
+        }
+    }
+    if ((result = pthread_cancel(t_wysylanie_sygnalu)) != 0)
+    {
+        if (result != ESRCH)
+        {
+            perror("pthread_cancel - t_wysylanie_sygnalu");
+            exit(EXIT_FAILURE);
+        }
+    }
 }
 
 void* wpuszczanie_klientow_olimpijski(void *arg)
@@ -279,7 +267,7 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
         strcpy(kom.mtext, "ok");
         kom.mtype = kom.ktype;
 
-        pthread_mutex_lock(&mutex_olimp);
+        lock_mutex(&mutex_olimp);
         if (zakaz_wstepu)
             strcpy(kom.mtext, "zakaz wstepu");
         else if (wiek < 18)
@@ -295,9 +283,9 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
             printf("****   W olimpijskim:   ****\n");
             for (int i = 1; i <= X1; i++)
                 (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
-            printf("***************************\n");
+            printf("****************************\n");
         }
-        pthread_mutex_unlock(&mutex_olimp);
+        unlock_mutex(&mutex_olimp);
 
         if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
         {
@@ -333,7 +321,7 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
         kom.mtype = kom.ktype;
         int ile_osob = (wiek < 10) ? 2 : 1;
 
-        pthread_mutex_lock(&mutex_rek);
+        lock_mutex(&mutex_rek);
         double sr = srednia_wieku(klienci[1], X2, wiek + wiek_opiekuna);
         if (zakaz_wstepu)
             strcpy(kom.mtext, "zakaz wstepu");
@@ -354,9 +342,9 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
                 (i < X2) ? printf("%d, ", klienci[0][i]) : printf("%d\n", klienci[0][i]);
             for (int i = 1; i <= X2; i++)
                 (i < X2) ? printf("%d, ", klienci[1][i]) : printf("%d\n", klienci[1][i]);
-            printf("***************************\n");
+            printf("****************************\n");
         }
-        pthread_mutex_unlock(&mutex_rek);
+        unlock_mutex(&mutex_rek);
 
         if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
         {
@@ -390,7 +378,8 @@ void* wpuszczanie_klientow_brodzik(void *arg)
         strcpy(kom.mtext, "ok");
         kom.mtype = kom.ktype;
 
-        pthread_mutex_lock(&mutex_brod);
+        lock_mutex(&mutex_brod);
+
         if (zakaz_wstepu)
             strcpy(kom.mtext, "zakaz wstepu");
         else if (wiek > 5)
@@ -408,7 +397,8 @@ void* wpuszczanie_klientow_brodzik(void *arg)
                 (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
             printf("***************************\n");
         }
-        pthread_mutex_unlock(&mutex_brod);
+
+        unlock_mutex(&mutex_brod);
 
         if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
         {
@@ -444,12 +434,16 @@ void* wychodzenie_klientow(void *arg)
             exit(EXIT_FAILURE);
         }
 
-        close(fifo_fd);
+        if (close(fifo_fd) == -1)
+        {
+            perror("close - zamkniecie fifo (ratownik)");
+            exit(EXIT_FAILURE);
+        }
 
         switch (ktory_basen)
         {
             case 1:
-                pthread_mutex_lock(&mutex_olimp);
+                lock_mutex(&mutex_olimp);
 
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(MAGENTA);
@@ -462,11 +456,11 @@ void* wychodzenie_klientow(void *arg)
                 printf("****   W olimpijskim:   ****\n");
                 for (int i = 1; i <= X1; i++)
                     (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
-                printf("***************************\n");
-                pthread_mutex_unlock(&mutex_olimp);
+                printf("****************************\n");
+                unlock_mutex(&mutex_olimp);
                 break;
             case 2:
-                pthread_mutex_lock(&mutex_rek);
+                lock_mutex(&mutex_rek);
 
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(MAGENTA);
@@ -485,11 +479,11 @@ void* wychodzenie_klientow(void *arg)
                     (i < X2) ? printf("%d, ", klienci_x2[0][i]) : printf("%d\n", klienci_x2[0][i]);
                 for (int i = 1; i <= X2; i++)
                     (i < X2) ? printf("%d, ", klienci_x2[1][i]) : printf("%d\n", klienci_x2[1][i]);
-                printf("***************************\n");
-                pthread_mutex_unlock(&mutex_rek);
+                printf("****************************\n");
+                unlock_mutex(&mutex_rek);
                 break;
             case 3:
-                pthread_mutex_lock(&mutex_brod);
+                lock_mutex(&mutex_brod);
 
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(MAGENTA);
@@ -503,7 +497,7 @@ void* wychodzenie_klientow(void *arg)
                 for (int i = 1; i <= X3; i++)
                     (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
                 printf("***************************\n");
-                pthread_mutex_unlock(&mutex_brod);
+                unlock_mutex(&mutex_brod);
                 break;
         }
     }
@@ -513,15 +507,13 @@ void* wychodzenie_klientow(void *arg)
 
 void* wysylanie_sygnalu(void *arg)
 {
-    pthread_t tid = pthread_self();  // Pobierz ID wątku
-    
     int *klienci = (int *)arg;
     union sigval sig_data;
     sig_data.sival_int = ktory_basen;
 
     while (*((int*)(shm_czas_adres)) < (DOBA - 7200))
     {
-        usleep(SEKUNDA * 1800);
+        my_sleep(SEKUNDA * 1800);
         if (rand() % 6 == ktory_basen)
         {
             godz_sym(*((int *)shm_czas_adres), godzina);
@@ -533,7 +525,7 @@ void* wysylanie_sygnalu(void *arg)
             switch (ktory_basen)
             {
                 case 1:
-                    pthread_mutex_lock(&mutex_olimp);
+                    lock_mutex(&mutex_olimp);
                     memset(wyrzuceni, 0, sizeof(wyrzuceni));
                     for (int i = 1; i <= X1; i++)
                     {
@@ -552,9 +544,9 @@ void* wysylanie_sygnalu(void *arg)
                         }
                     }
                     klienci[0] = 0;
-                    pthread_mutex_unlock(&mutex_olimp);
+                    unlock_mutex(&mutex_olimp);
 
-                    usleep(SEKUNDA * ((rand() % 1200) + 600));
+                    my_sleep(SEKUNDA * ((rand() % 1200) + 600));
                     for (int i = 0; i < X1; i++)
                         if (wyrzuceni[i])
                         {
@@ -569,7 +561,7 @@ void* wysylanie_sygnalu(void *arg)
                         }
                     break;
                 case 2:
-                    pthread_mutex_lock(&mutex_rek);
+                    lock_mutex(&mutex_rek);
                     int (*klienci_x2)[X2 + 1] = (int (*)[X2 + 1])klienci;
                     memset(wyrzuceni, 0, sizeof(wyrzuceni));
                     for (int i = 1; i <= X2; i++)
@@ -590,9 +582,9 @@ void* wysylanie_sygnalu(void *arg)
                         }
                     }
                     klienci_x2[0][0] = 0;
-                    pthread_mutex_unlock(&mutex_rek);
+                    unlock_mutex(&mutex_rek);
 
-                    usleep(SEKUNDA * ((rand() % 1200) + 600));
+                    my_sleep(SEKUNDA * ((rand() % 1200) + 600));
                     for (int i = 0; i < X2; i++)
                         if (wyrzuceni[i] != 0)
                         {
@@ -607,7 +599,7 @@ void* wysylanie_sygnalu(void *arg)
                         }
                     break;
                 case 3:
-                    pthread_mutex_lock(&mutex_brod);
+                    lock_mutex(&mutex_brod);
                     memset(wyrzuceni, 0, sizeof(wyrzuceni));
                     for (int i = 1; i <= X3; i++)
                     {
@@ -626,9 +618,9 @@ void* wysylanie_sygnalu(void *arg)
                         }
                     }
                     klienci[0] = 0;
-                    pthread_mutex_unlock(&mutex_brod);
+                    unlock_mutex(&mutex_brod);
 
-                    usleep(SEKUNDA * ((rand() % 1200) + 600));
+                    my_sleep(SEKUNDA * ((rand() % 1200) + 600));
                     for (int i = 0; i < X3; i++)
                         if (wyrzuceni[i] != 0)
                         {
