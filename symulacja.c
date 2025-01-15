@@ -254,6 +254,7 @@ void czyszczenie()
     else
         printf("Proces klientow (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
+    // semafor_v(semafor, 4);
     finished = waitpid(pid_kasjer, &status, 0);
     if (finished == -1) perror("wait - kasjer");  
     else if (WIFEXITED(status)) 
@@ -316,6 +317,9 @@ void signal_handler(int sig)
     {
         kill(-pid_ratownicy, SIGTSTP);
         kill(-pid_klienci, SIGTSTP);
+
+        // set_color(RESET);
+        // printf("ILOSC PROCESOW UZYTKOWNIKAAAAAA =%d\n", licz_procesy_uzytkownika());
 
         raise(SIGSTOP);
     }

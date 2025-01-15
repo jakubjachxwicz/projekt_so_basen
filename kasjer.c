@@ -15,7 +15,7 @@ struct dane_klienta *shm_adres;
 pthread_t t_klienci_vip, t_okresowe_zamkniecie;
 pthread_mutex_t mutex_czas_wyjscia;
 int ostatni_klient_czas_wyjscia, semafor;
-bool flag_obsluga_vip;
+volatile bool flag_obsluga_vip, flag_centrum_zamkniete;
 key_t key;
 
 
@@ -94,13 +94,14 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 	flag_obsluga_vip = true;
+	flag_centrum_zamkniete = false;
 
     while (true)
     {
 		semafor_p(semafor, 2);
 		memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
 
-		if ((*((int *)shm_czas_adres)) > DOBA - 3600)
+		if ((*((int *)shm_czas_adres)) > DOBA - 3600 || flag_centrum_zamkniete)
 			klient.wpuszczony = false;
 		else if ((klient.wiek > 18 || klient.wiek < 10) && klient.pieniadze >= 60)
 		{
@@ -146,7 +147,7 @@ void czyszczenie()
 			exit(EXIT_FAILURE);
 		}
 	}
-	semafor_v(semafor, 4);
+	// semafor_v(semafor, 4);
 	if (pthread_join(t_okresowe_zamkniecie, NULL) != 0)
 	{
 		perror("pthread_join - t_okresowe_zamkniecie");
@@ -168,7 +169,7 @@ void czyszczenie()
 	flag_obsluga_vip = false;
 	if ((status = pthread_cancel(t_klienci_vip)) != 0)
 	{
-		perror("pthread_cancel - t_klienci_vip");
+		fprintf(stderr, "pthread_cancel - t_klienci_vip, status: %d\n", status);
 		exit(EXIT_FAILURE);
 	}
 	if (pthread_join(t_klienci_vip, NULL) != 0)
@@ -218,7 +219,7 @@ void* klienci_vip()
 		kom.mtype = kom.ktype;
 		if (rand() % 30 == 16)
 			strcpy(kom.mtext, "karnet nie wazny");
-		else if ((*((int *)shm_czas_adres)) > DOBA - 3600)
+		else if ((*((int *)shm_czas_adres)) > DOBA - 3600 || flag_centrum_zamkniete)
 			strcpy(kom.mtext, "kasa zamknieta");
 		else
 		{
@@ -259,6 +260,7 @@ void* okresowe_zamkniecie()
 
 	// Blokuje wpuszczanie nowych klientow
 	semafor_p(semafor, 4);
+	flag_centrum_zamkniete = true;
 	godz_sym(*((int *)shm_czas_adres), godzina);
 	set_color(CYAN);
 	printf("[%s KASJER] KASA ZAMKNIETA, CZEKAM NA WYJSCIE KLIENTOW\n", godzina);
@@ -285,6 +287,7 @@ void* okresowe_zamkniecie()
 	set_color(CYAN);
 	printf("[%s KASJER] KOMPLEKS BASENOW OTWARTY\n", godzina);
 
+	flag_centrum_zamkniete = false;
 	semafor_v(semafor, 4);
 
 	return NULL;

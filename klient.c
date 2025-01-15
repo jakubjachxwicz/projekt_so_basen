@@ -16,7 +16,7 @@ int semafor, ktory_basen, zakaz_wejscia[3];
 
 pthread_t t_usuwanie_procesow;
 
-volatile bool flag_usuwanie;
+volatile bool flag_usuwanie, flag_opuszczony_semafor;
 
 int main(int argc, char *argv[])
 {
@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
     }
 
     flag_usuwanie = true;
+    flag_opuszczony_semafor = false;
     memset(zakaz_wejscia, 0, sizeof(zakaz_wejscia));
 
     pid_t pid_ratownicy = atoi(argv[1]);
@@ -124,14 +125,18 @@ int main(int argc, char *argv[])
     // Tworzenie klientow
     while (*((int*)(shm_czas_adres)) < (DOBA - 3600))
     {        
+        if (licz_procesy_uzytkownika() > 40000) continue;
         semafor_p(semafor, 4);
         pid_t pid = fork();
         if (pid > 0)
-            semafor_v(semafor, 4);
+        {
+            // semafor_v(semafor, 4);
+        }
         else if (pid < 0)
         {
             if (errno == EAGAIN)
             {
+                semafor_v(semafor, 4);
                 perror("fork - nowy klient, za duzo procesow");
                 set_color(RESET);
                 printf("[KLIENCI] Ponowna proba utworzenia nowego klienta\n");
@@ -152,6 +157,8 @@ int main(int argc, char *argv[])
                 perror("setpgid - klient");
                 exit(EXIT_FAILURE);
             }
+
+            semafor_v(semafor, 4);
             semafor_p(semafor, 6);
 
             if (*((int*)(shm_czas_adres)) > DOBA - 3600)
@@ -282,7 +289,7 @@ int main(int argc, char *argv[])
                         }
                     }
 
-                    my_sleep(SEKUNDA * 120);
+                    my_sleep(SEKUNDA * 90);
                 }
             } else
             {
@@ -301,7 +308,9 @@ int main(int argc, char *argv[])
             exit(0);
         }
 
-        my_sleep(SEKUNDA * ((rand() % 360) + 120));
+        // my_sleep(SEKUNDA * ((rand() % 360) + 120));
+        my_sleep(SEKUNDA * ((rand() % 180) + 60));
+        // my_sleep(SEKUNDA * ((rand() % 6) + 5));
     }
 
     flag_usuwanie = false;
@@ -359,6 +368,7 @@ void *usuwanie_procesow()
 
 void opuszczenie_basenu()
 {
+    semafor_p(semafor, 0);
     godz_sym(*((int *)shm_czas_adres), godzina);
     set_color(BLUE);
     printf("[%s KLIENT PID = %d] wychodze z basenu\n", godzina, getpid());
@@ -366,7 +376,6 @@ void opuszczenie_basenu()
     char file_name[13];
     strcpy(file_name, "fifo_basen_");
     sprintf(file_name + strlen(file_name), "%d", ktory_basen);
-    semafor_p(semafor, 0);
     int fd = open(file_name, O_WRONLY);
     if (fd < 0)
     {

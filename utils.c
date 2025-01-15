@@ -14,6 +14,8 @@
 #include <sys/msg.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/resource.h>
+#include <dirent.h>
 
 #include "header.h"
 
@@ -66,6 +68,11 @@ static void semafor_p(int semafor_id, int numer_semafora)
 	}
 }
 
+void set_color(const char* color) 
+{
+    printf("%s", color);
+}
+
 void dodaj_do_tablicy(int* tab, int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
@@ -95,18 +102,30 @@ void usun_z_tablicy(int* tab, int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
 	{
+		// set_color(RESET);
+		// printf("tab[%d] = %d, do skasowania: %d\n", i, tab[i], pid);
 		if (tab[i] == pid)
 		{
 			tab[i] = 0;
 			return;
 		}
 	}
+	// set_color(RESET);
+	// printf("nie skasowalim, roz = %d, pid do kasowania = %d\n", roz, pid);
+	// for(int j = 0; j <= roz; j++)
+	// {
+	// 	set_color(RESET);
+	// 	printf("tab[%d] = %d\n", j, tab[j]);
+	// }
+	// exit(2);
 }
 
 void usun_z_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
 	{
+		// set_color(RESET);
+		// printf("tab[0][%d] = %d, do skasowania: %d\n", i, tab[0][i], pid);
 		if (tab[0][i] == pid)
 		{
 			tab[0][i] = 0;
@@ -114,6 +133,15 @@ void usun_z_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid)
 			return;
 		}
 	}
+	// set_color(RESET);
+	// printf("nie skasowalim, roz = %d, pid do kasowania = %d\n", roz, pid);
+	// for(int j = 0; j < 2; j++)
+	// 	for (int k = 0; k <= roz; k++)
+	// 	{
+	// 		set_color(RESET);
+	// 		printf("tab[%d][%d] = %d\n", j, k, tab[j][k]);
+	// 	}
+	// exit(3);
 }
 
 int ile_osob(int* tab, int roz, int pid)
@@ -142,11 +170,6 @@ double srednia_wieku(int* tab, int roz, int nowy)
 
 	double sr = (double)(suma + nowy) / (double)(n + 1);
 	return sr;
-}
-
-void set_color(const char* color) 
-{
-    printf("%s", color);
 }
 
 void lock_mutex(pthread_mutex_t *mutex)
@@ -186,4 +209,45 @@ void simple_error_handler(int status, const char *msg)
 		fprintf(stderr, "%s, status: %d\n", msg, status);
         exit(EXIT_FAILURE);
 	}
+}
+
+int licz_procesy_uzytkownika() {
+    DIR *proc = opendir("/proc");
+    if (!proc) 
+	{
+        perror("opendir /proc");
+        exit(EXIT_FAILURE);
+    }
+
+    int uid = getuid();
+    int liczba_procesow = 0;
+    struct dirent *entry;
+
+    while ((entry = readdir(proc)) != NULL) 
+	{
+        if (entry->d_type == DT_DIR && atoi(entry->d_name) > 0) 
+		{
+            char path[256];
+            sprintf(path, "/proc/%s/status", entry->d_name);
+
+            FILE *status = fopen(path, "r");
+            if (!status) continue;
+
+            char line[256];
+            while (fgets(line, sizeof(line), status)) 
+			{
+                if (strncmp(line, "Uid:", 4) == 0) 
+				{
+                    int process_uid;
+                    sscanf(line, "Uid:\t%d", &process_uid);
+                    if (process_uid == uid)
+                        liczba_procesow++;
+                    break;
+                }
+            }
+            fclose(status);
+        }
+    }
+    closedir(proc);
+    return liczba_procesow;
 }

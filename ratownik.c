@@ -414,34 +414,36 @@ void* wpuszczanie_klientow_brodzik(void *arg)
     return NULL;
 }
 
+
 void* wychodzenie_klientow(void *arg)
 {
+    int *klienci = (int *)arg;
+    int pid;
+
+    // Stałe otwarcie FIFO
+    char file_name[13];
+    strcpy(file_name, "fifo_basen_");
+    sprintf(file_name + strlen(file_name), "%d", ktory_basen);
+
+    int fifo_fd = open(file_name, O_RDONLY);
+    if (fifo_fd == -1)
+    {
+        perror("open - nie mozna otworzyc FIFO (ratownik)");
+        exit(EXIT_FAILURE);
+    }
+
     while (flag_obsluga_klientow)
     {
-        int *klienci = (int *)arg;
-        int pid;
-
-        char file_name[13];
-        strcpy(file_name, "fifo_basen_");
-        sprintf(file_name + strlen(file_name), "%d", ktory_basen);
-
-        fifo_fd = open(file_name, O_RDONLY);
-        if (fifo_fd == -1)
-        {
-            perror("open - nie mozna otworzyc FIFO (ratownik)");
-            exit(EXIT_FAILURE);
-        }
-
-        if (read(fifo_fd, &pid, sizeof(pid)) == -1)
+        ssize_t bytes_read = read(fifo_fd, &pid, sizeof(pid));
+        if (bytes_read == -1)
         {
             perror("read - nie mozna odczytac FIFO (ratownik)");
             exit(EXIT_FAILURE);
         }
-
-        if (close(fifo_fd) == -1)
+        else if (bytes_read == 0)
         {
-            perror("close - zamkniecie fifo (ratownik)");
-            exit(EXIT_FAILURE);
+            // Brak danych do odczytu (EOF), czekamy na nowe dane
+            continue;
         }
 
         switch (ktory_basen)
@@ -506,8 +508,16 @@ void* wychodzenie_klientow(void *arg)
         }
     }
 
+    // Zamknięcie FIFO po zakończeniu pętli
+    if (close(fifo_fd) == -1)
+    {
+        perror("close - zamkniecie fifo (ratownik)");
+        exit(EXIT_FAILURE);
+    }
+
     return NULL;
 }
+
 
 void* wysylanie_sygnalu(void *arg)
 {
