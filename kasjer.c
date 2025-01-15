@@ -41,7 +41,7 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 7, 0600|IPC_CREAT);
+    semafor = semget(key, 8, 0600|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie dolaczyc do semafora");
@@ -166,7 +166,7 @@ void czyszczenie()
 	}
 
 
-	flag_obsluga_vip = false;
+	// flag_obsluga_vip = false;
 	if ((status = pthread_cancel(t_klienci_vip)) != 0)
 	{
 		fprintf(stderr, "pthread_cancel - t_klienci_vip, status: %d\n", status);
@@ -207,7 +207,7 @@ void* klienci_vip()
 
 	struct kom_kolejka_vip kom;
 
-	while (flag_obsluga_vip)
+	while (true)
 	{
 		kom.mtype = KOM_KASJER;
 		if (msgrcv(msq_kolejka_vip, &kom, sizeof(kom) - sizeof(long), kom.mtype, 0) == -1)
@@ -254,7 +254,7 @@ void* okresowe_zamkniecie()
 	// Watek czeka do godziny 13:00
 	while ((czas = *((int *)shm_czas_adres)) < GODZINA * 4)
 	{
-		my_sleep(SEKUNDA * 10);
+		// my_sleep(SEKUNDA * 10);
 		pthread_testcancel();
 	}
 
@@ -268,7 +268,7 @@ void* okresowe_zamkniecie()
 	// Czeka az ostatni klient wyjdzie
 	while ((czas = *((int *)shm_czas_adres)) < ostatni_klient_czas_wyjscia)
 	{
-		my_sleep(SEKUNDA);
+		// my_sleep(SEKUNDA);
 		pthread_testcancel();
 	}
 
@@ -279,7 +279,7 @@ void* okresowe_zamkniecie()
 	// Czeka godzine od wyjscia ostatniego klienta
 	while ((czas = *((int *)shm_czas_adres)) < ostatni_klient_czas_wyjscia + GODZINA)
 	{
-		my_sleep(SEKUNDA);
+		// my_sleep(SEKUNDA);
 		pthread_testcancel();
 	}
 

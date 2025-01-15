@@ -8,7 +8,7 @@ char* shm_czas_adres;
 pthread_mutex_t mutex_olimp, mutex_rek, mutex_brod;
 pthread_t t_wpuszczanie_klientow, t_wychodzenie_klientow, t_wysylanie_sygnalu;
 struct kom_ratownik kom;
-int msq_klient_ratownik, fifo_fd, ktory_basen;
+int msq_klient_ratownik, fifo_fd, ktory_basen, semafor;
 bool zakaz_wstepu;
 volatile bool flag_obsluga_klientow;
 
@@ -34,6 +34,12 @@ int main()
     zakaz_wstepu = false;
     flag_obsluga_klientow = true;
     
+    key_t key = ftok(".", 51);
+    if (key == -1)
+	{
+		perror("ftok - nie udalo sie utworzyc klucza");
+		exit(EXIT_FAILURE);
+	}
     key_t key_czas = ftok(".", 52);
     if (key_czas == -1)
 	{
@@ -47,6 +53,13 @@ int main()
         perror("msgget - dostep do kolejki kom. do obslugi klient/ratownik");
         exit(EXIT_FAILURE);
     }
+
+    semafor = semget(key, 8, 0600|IPC_CREAT);
+    if (semafor == -1)
+	{
+		perror("semget - nie udalo sie dolaczyc do semafora");
+		exit(EXIT_FAILURE);
+	}
 
     // Uzyskanie pamieci wspoldzielonej do obslugi czasu
     int shm_czas_id = shmget(key_czas, sizeof(int), 0600);
@@ -283,11 +296,13 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
             klienci[0]++;
             dodaj_do_tablicy(klienci, X1, kom.ktype);
 
+            semafor_p(semafor, 7);
             set_color(RESET);
             printf("****   W olimpijskim:   ****\n");
-            for (int i = 1; i <= X1; i++)
+            for (int i = 0; i <= X1; i++)
                 (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
             printf("****************************\n");
+            semafor_v(semafor, 7);
         }
         unlock_mutex(&mutex_olimp);
 
@@ -340,13 +355,15 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
             if (wiek_opiekuna)
                 dodaj_do_tablicy_X2(klienci, X2, kom.ktype, wiek_opiekuna);
 
+            semafor_p(semafor, 7);
             set_color(RESET);
             printf("****   W rekreacyjnym:   ****\n");
-            for (int i = 1; i <= X2; i++)
+            for (int i = 0; i <= X2; i++)
                 (i < X2) ? printf("%d, ", klienci[0][i]) : printf("%d\n", klienci[0][i]);
-            for (int i = 1; i <= X2; i++)
+            for (int i = 0; i <= X2; i++)
                 (i < X2) ? printf("%d, ", klienci[1][i]) : printf("%d\n", klienci[1][i]);
             printf("****************************\n");
+            semafor_v(semafor, 7);
         }
         unlock_mutex(&mutex_rek);
 
@@ -395,11 +412,13 @@ void* wpuszczanie_klientow_brodzik(void *arg)
             klienci[0]++;
             dodaj_do_tablicy(klienci, X3, kom.ktype);
 
+            semafor_p(semafor, 7);
             set_color(RESET);
             printf("*****   W brodziku:   *****\n");
-            for (int i = 1; i <= X3; i++)
+            for (int i = 0; i <= X3; i++)
                 (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
             printf("***************************\n");
+            semafor_v(semafor, 7);
         }
 
         unlock_mutex(&mutex_brod);
@@ -413,7 +432,6 @@ void* wpuszczanie_klientow_brodzik(void *arg)
 
     return NULL;
 }
-
 
 void* wychodzenie_klientow(void *arg)
 {
@@ -441,10 +459,7 @@ void* wychodzenie_klientow(void *arg)
             exit(EXIT_FAILURE);
         }
         else if (bytes_read == 0)
-        {
-            // Brak danych do odczytu (EOF), czekamy na nowe dane
             continue;
-        }
 
         switch (ktory_basen)
         {
@@ -458,11 +473,13 @@ void* wychodzenie_klientow(void *arg)
                 klienci[0]--;
                 usun_z_tablicy(klienci, X1, pid);
 
+                semafor_p(semafor, 7);
                 set_color(RESET);
                 printf("****   W olimpijskim:   ****\n");
-                for (int i = 1; i <= X1; i++)
+                for (int i = 0; i <= X1; i++)
                     (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
                 printf("****************************\n");
+                semafor_v(semafor, 7);
                 unlock_mutex(&mutex_olimp);
                 break;
             case 2:
@@ -479,13 +496,15 @@ void* wychodzenie_klientow(void *arg)
                 for (int j = 0; j < ile; j++)
                     usun_z_tablicy_X2(klienci_x2, X2, pid);
 
+                semafor_p(semafor, 7);
                 set_color(RESET);
                 printf("****   W rekreacyjnym:   ****\n");
-                for (int i = 1; i <= X2; i++)
+                for (int i = 0; i <= X2; i++)
                     (i < X2) ? printf("%d, ", klienci_x2[0][i]) : printf("%d\n", klienci_x2[0][i]);
-                for (int i = 1; i <= X2; i++)
+                for (int i = 0; i <= X2; i++)
                     (i < X2) ? printf("%d, ", klienci_x2[1][i]) : printf("%d\n", klienci_x2[1][i]);
                 printf("****************************\n");
+                semafor_v(semafor, 7);
                 unlock_mutex(&mutex_rek);
                 break;
             case 3:
@@ -498,11 +517,13 @@ void* wychodzenie_klientow(void *arg)
                 klienci[0]--;
                 usun_z_tablicy(klienci, X3, pid);
 
+                semafor_p(semafor, 7);
                 set_color(RESET);
                 printf("*****   W brodziku:   *****\n");
-                for (int i = 1; i <= X3; i++)
+                for (int i = 0; i <= X3; i++)
                     (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
                 printf("***************************\n");
+                semafor_v(semafor, 7);
                 unlock_mutex(&mutex_brod);
                 break;
         }
@@ -535,11 +556,11 @@ void* wysylanie_sygnalu(void *arg)
             printf("[%s RATOWNIK %d] wysylam SIGUSR1 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
             
             int wyrzuceni[(ktory_basen == 1 ? X1 : ((ktory_basen == 2) ? X2 : X3))];
-            zakaz_wstepu = true;
             switch (ktory_basen)
             {
                 case 1:
                     lock_mutex(&mutex_olimp);
+                    zakaz_wstepu = true;
                     memset(wyrzuceni, 0, sizeof(wyrzuceni));
                     for (int i = 1; i <= X1; i++)
                     {
@@ -554,13 +575,14 @@ void* wysylanie_sygnalu(void *arg)
                                     exit(EXIT_FAILURE);
                                 }
                             }
-                            klienci[i] = 0;
+                            // klienci[i] = 0;
                         }
                     }
-                    klienci[0] = 0;
+                    // klienci[0] = 0;
                     unlock_mutex(&mutex_olimp);
 
                     my_sleep(SEKUNDA * ((rand() % 1200) + 600));
+                    lock_mutex(&mutex_olimp);
                     for (int i = 0; i < X1; i++)
                         if (wyrzuceni[i])
                         {
@@ -573,9 +595,11 @@ void* wysylanie_sygnalu(void *arg)
                                 }
                             }
                         }
+                    unlock_mutex(&mutex_olimp);
                     break;
                 case 2:
                     lock_mutex(&mutex_rek);
+                    zakaz_wstepu = true;
                     int (*klienci_x2)[X2 + 1] = (int (*)[X2 + 1])klienci;
                     memset(wyrzuceni, 0, sizeof(wyrzuceni));
                     for (int i = 1; i <= X2; i++)
@@ -591,14 +615,15 @@ void* wysylanie_sygnalu(void *arg)
                                     exit(EXIT_FAILURE);
                                 }
                             }
-                            klienci_x2[0][i] = 0;
-                            klienci_x2[1][i] = 0;
+                            // klienci_x2[0][i] = 0;
+                            // klienci_x2[1][i] = 0;
                         }
                     }
-                    klienci_x2[0][0] = 0;
+                    // klienci_x2[0][0] = 0;
                     unlock_mutex(&mutex_rek);
 
                     my_sleep(SEKUNDA * ((rand() % 1200) + 600));
+                    lock_mutex(&mutex_rek);
                     for (int i = 0; i < X2; i++)
                         if (wyrzuceni[i] != 0)
                         {
@@ -611,9 +636,11 @@ void* wysylanie_sygnalu(void *arg)
                                 }
                             }
                         }
+                    unlock_mutex(&mutex_rek);
                     break;
                 case 3:
                     lock_mutex(&mutex_brod);
+                    zakaz_wstepu = true;
                     memset(wyrzuceni, 0, sizeof(wyrzuceni));
                     for (int i = 1; i <= X3; i++)
                     {
@@ -628,13 +655,14 @@ void* wysylanie_sygnalu(void *arg)
                                     exit(EXIT_FAILURE);
                                 }
                             }
-                            klienci[i] = 0;
+                            // klienci[i] = 0;
                         }
                     }
-                    klienci[0] = 0;
+                    // klienci[0] = 0;
                     unlock_mutex(&mutex_brod);
 
                     my_sleep(SEKUNDA * ((rand() % 1200) + 600));
+                    lock_mutex(&mutex_brod);
                     for (int i = 0; i < X3; i++)
                         if (wyrzuceni[i] != 0)
                         {
@@ -647,6 +675,7 @@ void* wysylanie_sygnalu(void *arg)
                                 }
                             }
                         }
+                    unlock_mutex(&mutex_brod);
                     break;
             }
 
