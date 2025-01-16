@@ -14,6 +14,8 @@
 #include <sys/msg.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/resource.h>
+#include <dirent.h>
 
 #include "header.h"
 
@@ -66,6 +68,12 @@ static void semafor_p(int semafor_id, int numer_semafora)
 	}
 }
 
+void set_color(const char* color) 
+{
+    printf("%s", color);
+}
+
+// Dodanie PID klienta do tablicy (basen olimpijski i brodzik)
 void dodaj_do_tablicy(int* tab, int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
@@ -78,6 +86,7 @@ void dodaj_do_tablicy(int* tab, int roz, int pid)
 	}
 }
 
+// Dodanie PID i wieku klienta do tablicy (basen rekreacyjny)
 void dodaj_do_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid, int wiek)
 {
 	for (int i = 1; i <= roz; i++)
@@ -91,6 +100,7 @@ void dodaj_do_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid, int wiek)
 	}
 }
 
+// Usuniecie PID klienta do tablicy (basen olimpijski i brodzik)
 void usun_z_tablicy(int* tab, int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
@@ -103,6 +113,7 @@ void usun_z_tablicy(int* tab, int roz, int pid)
 	}
 }
 
+// Usuniecie PID i wieku klienta do tablicy (basen rekreacyjny)
 void usun_z_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
@@ -116,6 +127,7 @@ void usun_z_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid)
 	}
 }
 
+// Liczenie ilosci osob przebywajacych na basenie
 int ile_osob(int* tab, int roz, int pid)
 {
 	int ile = 0;
@@ -128,6 +140,7 @@ int ile_osob(int* tab, int roz, int pid)
 	return ile;
 }
 
+// Licznie sredniej wieku w basenie rekreacyjnym
 double srednia_wieku(int* tab, int roz, int nowy)
 {
 	int n = 0, suma = 0;
@@ -144,29 +157,29 @@ double srednia_wieku(int* tab, int roz, int nowy)
 	return sr;
 }
 
-void set_color(const char* color) 
-{
-    printf("%s", color);
-}
-
+// Funkcja blokowania mutexa z obluga bledow
 void lock_mutex(pthread_mutex_t *mutex)
 {
-	if (pthread_mutex_lock(mutex) != 0)
+	int status;
+	if ((status = pthread_mutex_lock(mutex)) != 0)
 	{
-		perror("pthread_mutex_lock - problem z zablokowaniem mutexa");
+		fprintf(stderr, "pthread_mutex_lock - problem z zablokowaniem mutexa, status: %d\n", status);
 		exit(EXIT_FAILURE);
 	}
 }
 
+// Funkcja blokowania mutexa z obluga bledow
 void unlock_mutex(pthread_mutex_t *mutex)
 {
-	if (pthread_mutex_unlock(mutex) != 0)
+	int status;
+	if ((status = pthread_mutex_unlock(mutex)) != 0)
 	{
-		perror("pthread_mutex_lock - problem z odblokowaniem mutexa");
+		fprintf(stderr, "pthread_mutex_lock - problem z odblokowaniem mutexa, status: %d\n", status);
 		exit(EXIT_FAILURE);
 	}
 }
 
+// Funkcja usleep z oblsuga bledow
 void my_sleep(int qs)
 {
 	if (usleep(qs) != 0)
@@ -179,6 +192,7 @@ void my_sleep(int qs)
 	}
 }
 
+// Obsluga bledow dla funkcji nie ustawiajacych errno
 void simple_error_handler(int status, const char *msg)
 {
 	if (status != 0)
@@ -186,4 +200,78 @@ void simple_error_handler(int status, const char *msg)
 		fprintf(stderr, "%s, status: %d\n", msg, status);
         exit(EXIT_FAILURE);
 	}
+}
+
+int licz_procesy_uzytkownika() {
+    DIR *proc = opendir("/proc");
+    if (!proc) 
+	{
+        perror("opendir /proc");
+        exit(EXIT_FAILURE);
+    }
+
+    int uid = getuid();
+    int liczba_procesow = 0;
+    struct dirent *entry;
+
+    while ((entry = readdir(proc)) != NULL) 
+	{
+        if (entry->d_type == DT_DIR && atoi(entry->d_name) > 0) 
+		{
+            char path[256];
+            sprintf(path, "/proc/%s/status", entry->d_name);
+
+            FILE *status = fopen(path, "r");
+            if (!status) continue;
+
+            char line[256];
+            while (fgets(line, sizeof(line), status)) 
+			{
+                if (strncmp(line, "Uid:", 4) == 0) 
+				{
+                    int process_uid;
+                    sscanf(line, "Uid:\t%d", &process_uid);
+                    if (process_uid == uid)
+                        liczba_procesow++;
+                    break;
+                }
+            }
+            fclose(status);
+        }
+    }
+    closedir(proc);
+    return liczba_procesow;
+}
+
+// Wyswietlanie ilsosci oraz PID klientow (basen olimpijski i brodzik)
+void wyswietl_klientow(int ktory_basen, int* klienci)
+{
+	set_color(RESET);
+	switch (ktory_basen)
+	{
+		case 1:
+			printf("****   W olimpijskim: %d ****\n", klienci[0]);
+			for (int i = 1; i <= X1; i++)
+				(i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
+			printf("****************************\n");
+		break;
+		case 3:
+			printf("*****   W brodziku: %d *****\n", klienci[0]);
+			for (int i = 1; i <= X3; i++)
+				(i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
+			printf("***************************\n");
+		break;
+	}
+}
+
+// Wyswietlanie ilsosci, PID oraz wieku klientow (basen rekreacyjny)
+void wyswietl_klientow_rek(int (*klienci)[X2 + 1])
+{
+	set_color(RESET);
+	printf("****   W rekreacyjnym: %d ****\n", klienci[0][0]);
+	for (int i = 1; i <= X2; i++)
+		(i < X2) ? printf("%d, ", klienci[0][i]) : printf("%d\n", klienci[0][i]);
+	for (int i = 1; i <= X2; i++)
+		(i < X2) ? printf("%d, ", klienci[1][i]) : printf("%d\n", klienci[1][i]);
+	printf("****************************\n");
 }

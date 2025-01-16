@@ -3,25 +3,22 @@
 
 #define MAX_KLIENCI 15
 
-static void semafor_v(int semafor_id, int numer_semafora);
-static void semafor_p(int semafor_id, int numer_semafora);
 void signal_handler(int sig);
 void sigusr_handler(int sig, siginfo_t *info, void *context);
 void *usuwanie_procesow();
 void opuszczenie_basenu();
+void odlaczeni_pamieci();
 
 char godzina[9];
 char* shm_czas_adres;
+struct dane_klienta* shm_adres;
 int semafor, ktory_basen, zakaz_wejscia[3];
 
 pthread_t t_usuwanie_procesow;
-
-volatile bool flag_usuwanie;
+volatile bool flag_usuwanie, flag_opuszczony_semafor;
 
 int main(int argc, char *argv[])
 {
-    srand(time(NULL));
-
     if (setpgid(0, 0) == -1)
     {
         perror("setpgid - glowny proces klientow");
@@ -46,12 +43,10 @@ int main(int argc, char *argv[])
     }
 
     flag_usuwanie = true;
+    flag_opuszczony_semafor = false;
     memset(zakaz_wejscia, 0, sizeof(zakaz_wejscia));
 
-    pid_t pid_ratownicy = atoi(argv[1]);
-    pid_t pid_kasjer = atoi(argv[2]);
-    pid_t pid_macierzysty = getpid();
-
+    // Inicjowanie kluczy i semaforow
     key_t key = ftok(".", 51);
     if (key == -1)
 	{
@@ -66,21 +61,21 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 7, 0600|IPC_CREAT);
+    semafor = semget(key, 8, 0600);
     if (semafor == -1)
 	{
 		perror("semget - dostep do zbioru semaforow");
 		exit(EXIT_FAILURE);
 	}
 
+    // Uzyskanie pamieci wspoldzielonej do wymiany danych klient / kasjer
     int shm_id = shmget(key, sizeof(struct dane_klienta), 0600);
     if (shm_id == -1)
     {
         perror("shmget - dostep do pamieci wspoldzielonej");
         exit(EXIT_FAILURE);
     }
-
-    struct dane_klienta* shm_adres = (struct dane_klienta*)shmat(shm_id, NULL, 0);
+    shm_adres = (struct dane_klienta*)shmat(shm_id, NULL, 0);
     if (shm_adres == (struct dane_klienta*)(-1))
     {
         perror("shmat - problem z dolaczeniem pamieci");
@@ -94,7 +89,6 @@ int main(int argc, char *argv[])
         perror("shmget - dolaczenie pamieci wspoldzielonej do obługi czasu");
         exit(EXIT_FAILURE);
     }
-
     shm_czas_adres = (char*)shmat(shm_czas_id, NULL, 0);
     if (shm_czas_adres == (char*)(-1))
     {
@@ -115,47 +109,46 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    if (pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL) != 0)
-    {
-        perror("pthread_create - usuwanie procesow zombie");
-        exit(EXIT_FAILURE);
-    }
+    int status = pthread_create(&t_usuwanie_procesow, NULL, &usuwanie_procesow, NULL);
+    simple_error_handler(status, "pthread_create - usuwanie procesow zombie");
 
     // Tworzenie klientow
     while (*((int*)(shm_czas_adres)) < (DOBA - 3600))
     {        
+        if (licz_procesy_uzytkownika() > 40000) continue;
+
+        // Okresowe zamkniecie kompleksu - semafor jest opuszczony i nie pojawiaja sie nowi klienci
         semafor_p(semafor, 4);
         pid_t pid = fork();
-        if (pid > 0)
-            semafor_v(semafor, 4);
-        else if (pid < 0)
+
+        if (pid < 0)
         {
             if (errno == EAGAIN)
-            {
                 perror("fork - nowy klient, za duzo procesow");
-                set_color(RESET);
-                printf("[KLIENCI] Ponowna proba utworzenia nowego klienta\n");
-            } else if (errno == ENOMEM)
-            {
+            else if (errno == ENOMEM)
                 perror("fork - brak pamieci w systemie");
-                exit(EXIT_FAILURE);
-            } else
-            {
+            else
                 perror("fork - nowy klient");
-                exit(EXIT_FAILURE);
-            }
+
+            kill(-getpid(), SIGINT);
+            exit(EXIT_FAILURE);
         } else if (pid == 0)
         {
+            srand(getpid());
+            signal(SIGTSTP, SIG_DFL);
+            semafor_v(semafor, 4);
             if (setpgid(0, getppid()) == -1)
             {
                 perror("setpgid - klient");
                 exit(EXIT_FAILURE);
             }
+
             semafor_p(semafor, 6);
 
-            if (*((int*)(shm_czas_adres)) >= DOBA)
+            if (*((int*)(shm_czas_adres)) > DOBA - 3600)
             {
                 semafor_v(semafor, 6);
+                odlaczeni_pamieci();
                 exit(0);
             }
             
@@ -171,11 +164,12 @@ int main(int argc, char *argv[])
 
             if (klient.VIP)
             {
+                // Wymiana danych klient VIP / kasjer
                 semafor_p(semafor, 5);
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(BLUE);
                 printf("[%s VIP PID = %d, wiek: %d] podchodzi do kasy\n", godzina, getpid(), klient.wiek);
-                
+
                 struct kom_kolejka_vip kom;
                 kom.mtype = KOM_KASJER;
                 kom.ktype = klient.PID;
@@ -203,6 +197,7 @@ int main(int argc, char *argv[])
                 semafor_v(semafor, 5);
             } else
             {
+                // Wymiana danych klient zwykly / kasjer
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(BLUE);
                 printf("[%s KLIENT PID = %d, wiek: %d] w kolejce na basen\n", godzina, getpid(), klient.wiek);
@@ -232,6 +227,7 @@ int main(int argc, char *argv[])
 
                 while (true)
                 {
+                    // Klient przekroczyl swoj czas i wychodzi z basenu
                     if (*((int *)shm_czas_adres) > klient.godz_wyjscia)
                     {
                         if (ktory_basen)
@@ -281,7 +277,6 @@ int main(int argc, char *argv[])
                             printf("KLIENT PID = %d, odpowiedz: %s\n", klient.PID, kom.mtext);
                         }
                     }
-
                     my_sleep(SEKUNDA * 120);
                 }
             } else
@@ -291,27 +286,22 @@ int main(int argc, char *argv[])
                 printf("[%s KLIENT PID = %d] nie wpuszczono mnie do kompleksu basenow\n", godzina, getpid());
             }
 
-            if (shmdt(shm_adres) == -1 || shmdt(shm_czas_adres) == -1)
-            {
-                perror("shmdt - problem z odlaczeniem pamieci od procesu");
-                exit(EXIT_FAILURE);
-            }
-
+            odlaczeni_pamieci();
             semafor_v(semafor, 6);
             exit(0);
         }
 
-        my_sleep(SEKUNDA * ((rand() % 360) + 120));
+        // my_sleep(SEKUNDA * ((rand() % 360) + 120));
+        my_sleep(SEKUNDA * ((rand() % 180) + 60));
+        // my_sleep(SEKUNDA * ((rand() % 6) + 5));
     }
 
     flag_usuwanie = false;
-    if (pthread_join(t_usuwanie_procesow, NULL) != 0)
-    {
-        perror("pthread_join - watek usuwajacy procesy zombie");
-        exit(EXIT_FAILURE);
-    }
+    status = pthread_join(t_usuwanie_procesow, NULL);
+    simple_error_handler(status, "pthread_join - watek usuwajacy procesy zombie");
 
     while (wait(NULL) != -1) { }
+    odlaczeni_pamieci();
     exit(0);
 }
 
@@ -330,12 +320,16 @@ void sigusr_handler(int sig, siginfo_t *info, void *context)
     {
         set_color(BLUE);
         printf("KLIENT PID = %d otrzymalem SIGUSR1 na basen %d\n", getpid(), info->si_value.sival_int);
+
+        // Blokuje wybor danego basenu i z niego wychodzi
         zakaz_wejscia[info->si_value.sival_int - 1] = 1;
         ktory_basen = 0;
     } else if (sig == SIGUSR2)
     {
         set_color(BLUE);
         printf("KLIENT PID = %d otrzymalem SIGUSR2 na basen %d\n", getpid(), info->si_value.sival_int);
+
+        // Odblokowuje wybor danego basenu
         zakaz_wejscia[info->si_value.sival_int - 1] = 0;
     }
 }
@@ -357,8 +351,10 @@ void *usuwanie_procesow()
     return 0;
 }
 
+// Wysylanie przez FIFO swojego PID do ratownika, aby ten usunal go z listy klientow na basenie
 void opuszczenie_basenu()
 {
+    semafor_p(semafor, 0);
     godz_sym(*((int *)shm_czas_adres), godzina);
     set_color(BLUE);
     printf("[%s KLIENT PID = %d] wychodze z basenu\n", godzina, getpid());
@@ -366,7 +362,6 @@ void opuszczenie_basenu()
     char file_name[13];
     strcpy(file_name, "fifo_basen_");
     sprintf(file_name + strlen(file_name), "%d", ktory_basen);
-    semafor_p(semafor, 0);
     int fd = open(file_name, O_WRONLY);
     if (fd < 0)
     {
@@ -386,4 +381,13 @@ void opuszczenie_basenu()
         exit(EXIT_FAILURE);
     }
     semafor_v(semafor, 0);
+}
+
+void odlaczeni_pamieci()
+{
+    if (shmdt(shm_adres) == -1 || shmdt(shm_czas_adres) == -1)
+    {
+        perror("shmdt - problem z odlaczeniem pamieci od procesu");
+        exit(EXIT_FAILURE);
+    }
 }

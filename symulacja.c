@@ -16,9 +16,10 @@ int shm_id, shm_czas_id, semafor, msq_kolejka_vip, msq_klient_ratownik;
 int main()
 {
     signal(SIGINT, signal_handler);
+    signal(SIGTSTP, signal_handler);
+    signal(SIGCONT, signal_handler);
     stop_time = false;
     
-    // Inicjowanie semaforkow
     key_t key = ftok(".", 51);
     if (key == -1)
 	{
@@ -35,11 +36,12 @@ int main()
 
     // Semafory:
     // 0: klienci opuszczajacy basen
-    // 1 - 3: klienci zwykli podchodzacy do kasy
+    // 1 - 3: obsluga zwyklych klientow przy kasie
     // 4: okresowe zamykanie
     // 5: klienci VIP
     // 6: kolejka do kompleksu basenow
-    semafor = semget(key, 7, 0600|IPC_CREAT);
+    // 7: wyswietlanie stanu basenu pojedynczo
+    semafor = semget(key, 8, 0600|IPC_CREAT);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie utworzyc semafora");
@@ -80,8 +82,13 @@ int main()
         perror("semctl - nie mozna ustawic semafora");
         exit(EXIT_FAILURE);
     }
+    if (semctl(semafor, 7, SETVAL, 1) == -1)
+    {
+        perror("semctl - nie mozna ustawic semafora");
+        exit(EXIT_FAILURE);
+    }
 
-    // Inicjowanie kolejek komunikatow
+    // Kolejka do komunikacji klient VIP / kasjer
     msq_kolejka_vip = msgget(key, IPC_CREAT | 0600);
     if (msq_kolejka_vip == -1)
     {
@@ -89,6 +96,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
+    // Kolejka do komuniakcji klient / ratownik
     msq_klient_ratownik = msgget(key_czas, IPC_CREAT | 0600);
     if (msq_klient_ratownik == -1)
     {
@@ -96,7 +104,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    // Inicjowanie pam. wspoldzielonej do wymiany kasjer/klient/ratownik
+    // Inicjowanie pam. wspoldzielonej do wymiany kasjer/klient
     shm_id = shmget(key, sizeof(struct dane_klienta), 0600|IPC_CREAT);
     if (shm_id == -1)
     {
@@ -117,13 +125,7 @@ int main()
         perror("shmat - problem z dolaczeniem pamieci do obslugi czasu");
         exit(EXIT_FAILURE);
     }
-
     *shm_czas_adres = 0;
-    if (pthread_create(&t_czasomierz, NULL, &czasomierz, NULL) != 0)
-    {
-        perror("pthread_create - watek do obslugi czasu");
-        exit(EXIT_FAILURE);
-    }
 
     // Inicjowanie kolejek FIFO do obslugi klientow opuszczajacych basen    
     if (mkfifo("fifo_basen_1", 0600) == -1 || mkfifo("fifo_basen_2", 0600) == -1 || mkfifo("fifo_basen_3", 0600) == -1)
@@ -154,6 +156,7 @@ int main()
         if (pid_kasjer < 0)
         {
             perror("fork error - proces kasjera");
+            kill(pid_ratownicy, SIGINT);
             exit(EXIT_FAILURE);
         } else if (pid_kasjer == 0)
         {
@@ -169,16 +172,13 @@ int main()
             if (pid_klienci < 0)
             {
                 perror("fork error - proces klientow");
+                kill(pid_ratownicy, SIGINT);
+                kill(pid_kasjer, SIGINT);
                 exit(EXIT_FAILURE);
             }
             else if (pid_klienci == 0)
             {
-                char pid_ratownicy_str[10];
-                sprintf(pid_ratownicy_str, "%d", pid_ratownicy);
-                char pid_kasjer_str[10];
-                sprintf(pid_kasjer_str, "%d", pid_kasjer);
-
-                if (execl("./klient", "klient", pid_ratownicy_str, pid_kasjer_str, NULL) == -1)
+                if (execl("./klient", "klient", NULL) == -1)
                 {
                     perror("execl - klient.c");
                     exit(EXIT_FAILURE);
@@ -190,10 +190,15 @@ int main()
     set_color(RESET);
     printf("Klienci PID: %d, kasjer PID: %d, ratownicy PID: %d\n\n", pid_klienci, pid_kasjer, pid_ratownicy);
 
+    if (pthread_create(&t_czasomierz, NULL, &czasomierz, NULL) != 0)
+    {
+        perror("pthread_create - watek do obslugi czasu");
+        exit(EXIT_FAILURE);
+    }
+
     czyszczenie();
     return 0;
 }
-
 
 void *czasomierz()
 {
@@ -219,19 +224,19 @@ void *czasomierz()
             exit(EXIT_FAILURE);
         }
     }
-    if (kill(-pid_ratownicy, SIGINT) != 0)
-    {
-        if (errno != ESRCH)
-        {
-            perror("kill - zabijanie procesow ratownikow po skonczeniu symulacji");
-            exit(EXIT_FAILURE);
-        }
-    }
     if (kill(pid_kasjer, SIGINT) != 0)
     {
         if (errno != ESRCH)
         {
             perror("kill - zabijanie procesu kasjera po skonczeniu symulacji");
+            exit(EXIT_FAILURE);
+        }
+    }
+    if (kill(-pid_ratownicy, SIGINT) != 0)
+    {
+        if (errno != ESRCH)
+        {
+            perror("kill - zabijanie procesow ratownikow po skonczeniu symulacji");
             exit(EXIT_FAILURE);
         }
     }
@@ -248,27 +253,30 @@ void czyszczenie()
     finished = waitpid(pid_klienci, &status, 0);
     if (finished == -1) perror("wait - klienci");  
     else if (WIFEXITED(status)) 
-        printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
+        printf("Proces klientow (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
     else
-        printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
+        printf("Proces klientow (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
     finished = waitpid(pid_kasjer, &status, 0);
     if (finished == -1) perror("wait - kasjer");  
     else if (WIFEXITED(status)) 
-        printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
+        printf("Proces kasjera (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
     else
-        printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
+        printf("Proces kasjera (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
     finished = waitpid(pid_ratownicy, &status, 0);
     if (finished == -1) perror("wait - ratownicy");  
     else if (WIFEXITED(status)) 
-        printf("Proces potomny (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
+        printf("Proces ratownikow (PID: %d) zakonczyl sie z kodem: %d\n", finished, WEXITSTATUS(status));
     else
-        printf("Proces potomny (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
+        printf("Proces ratownikow (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
-    if (pthread_join(t_czasomierz, NULL) != 0)
+    status = pthread_join(t_czasomierz, NULL);
+    simple_error_handler(status, "pthread_join - watek czasomierza");
+
+    if (unlink("fifo_basen_1") == -1 || unlink("fifo_basen_2") == -1 || unlink("fifo_basen_3") == -1) 
     {
-        perror("pthread_join - watek czasomierza");
+        perror("unlink - usuwanie FIFO");
         exit(EXIT_FAILURE);
     }
 
@@ -309,5 +317,17 @@ void signal_handler(int sig)
         
         czyszczenie();
         exit(0);
+    }
+    if (sig == SIGTSTP)
+    {
+        kill(-pid_ratownicy, SIGTSTP);
+        kill(-pid_klienci, SIGTSTP);
+
+        raise(SIGSTOP);
+    }
+    if (sig == SIGCONT)
+    {
+        kill(-pid_ratownicy, SIGCONT);
+        kill(-pid_klienci, SIGCONT);
     }
 }
