@@ -2,8 +2,6 @@
 #include "utils.c"
 
 
-static void semafor_v(int semafor_id, int numer_semafora);
-static void semafor_p(int semafor_id, int numer_semafora);
 void czyszczenie();
 void signal_handler(int sig);
 void* klienci_vip();
@@ -15,7 +13,7 @@ struct dane_klienta *shm_adres;
 pthread_t t_klienci_vip, t_okresowe_zamkniecie;
 pthread_mutex_t mutex_czas_wyjscia;
 int ostatni_klient_czas_wyjscia, semafor;
-volatile bool flag_obsluga_vip, flag_centrum_zamkniete;
+volatile bool flag_centrum_zamkniete;
 key_t key;
 
 
@@ -41,20 +39,20 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
-    semafor = semget(key, 8, 0600|IPC_CREAT);
+    semafor = semget(key, 8, 0600);
     if (semafor == -1)
 	{
 		perror("semget - nie udalo sie dolaczyc do semafora");
 		exit(EXIT_FAILURE);
 	}
 
+	// Uzyskanie pamieci wspoldzielonej do wymiany klient VIP / kasjer
 	int shm_id = shmget(key, sizeof(struct dane_klienta), 0600);
     if (shm_id == -1)
     {
         perror("shmget - tworzenie pamieci wspoldzielonej");
         exit(EXIT_FAILURE);
     }
-
     shm_adres = (struct dane_klienta*)shmat(shm_id, NULL, 0);
     if (shm_adres == (struct dane_klienta*)(-1))
     {
@@ -69,7 +67,6 @@ int main()
         perror("shmget - tworzenie pamieci wspoldzielonej do obługi czasu");
         exit(EXIT_FAILURE);
     }
-
     shm_czas_adres = (char*)shmat(shm_czas_id, NULL, 0);
     if (shm_czas_adres == (char*)(-1))
     {
@@ -77,30 +74,22 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-	if (pthread_mutex_init(&mutex_czas_wyjscia, NULL) != 0)
-	{
-		perror("pthread_mutex_init - mutex_czas_wyjscia");
-		exit(EXIT_FAILURE);
-	}
+	int status = pthread_mutex_init(&mutex_czas_wyjscia, NULL);
+	simple_error_handler(status, "pthread_mutex_init - mutex_czas_wyjscia");
+	status = pthread_create(&t_klienci_vip, NULL, &klienci_vip, NULL);
+	simple_error_handler(status, "pthread_create - tworzenie watku do obslugi klientow VIP");
+	status = pthread_create(&t_okresowe_zamkniecie, NULL, &okresowe_zamkniecie, NULL);
+	simple_error_handler(status, "pthread_create - tworzenie watku dookresowego zamykania");
 
-	if (pthread_create(&t_klienci_vip, NULL, &klienci_vip, NULL) != 0)
-	{
-		perror("pthread_create - tworzenie watku do obslugi klientow VIP");
-		exit(EXIT_FAILURE);
-	}
-	if (pthread_create(&t_okresowe_zamkniecie, NULL, &okresowe_zamkniecie, NULL) != 0)
-	{
-		perror("pthread_create - tworzenie watku dookresowego zamykania");
-		exit(EXIT_FAILURE);
-	}
-	flag_obsluga_vip = true;
 	flag_centrum_zamkniete = false;
 
     while (true)
     {
+		// Obsluga zwyklych klientow
 		semafor_p(semafor, 2);
 		memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
 
+		// Nie wpuszczanie klientow po 20:00 lub gdy centrum jest zamkniete
 		if ((*((int *)shm_czas_adres)) > DOBA - GODZINA || flag_centrum_zamkniete)
 			klient.wpuszczony = false;
 		else if ((klient.wiek > 18 || klient.wiek < 10) && klient.pieniadze >= 60)
@@ -147,12 +136,9 @@ void czyszczenie()
 			exit(EXIT_FAILURE);
 		}
 	}
-	// semafor_v(semafor, 4);
-	if (pthread_join(t_okresowe_zamkniecie, NULL) != 0)
-	{
-		perror("pthread_join - t_okresowe_zamkniecie");
-		exit(EXIT_FAILURE);
-	}
+
+	status = pthread_join(t_okresowe_zamkniecie, NULL);
+	simple_error_handler(status, "pthread_join - t_okresowe_zamkniecie");
 
 	if (shmdt(shm_adres) == -1)
 	{
@@ -165,24 +151,12 @@ void czyszczenie()
         exit(EXIT_FAILURE);
 	}
 
-
-	// flag_obsluga_vip = false;
-	if ((status = pthread_cancel(t_klienci_vip)) != 0)
-	{
-		fprintf(stderr, "pthread_cancel - t_klienci_vip, status: %d\n", status);
-		exit(EXIT_FAILURE);
-	}
-	if (pthread_join(t_klienci_vip, NULL) != 0)
-	{
-		perror("pthread_join - t_klienci_vip");
-		exit(EXIT_FAILURE);
-	}
-
-	if (pthread_mutex_destroy(&mutex_czas_wyjscia) != 0)
-	{
-		perror("pthread_mutex_destroy - mutex_czas_wyjscia");
-		exit(EXIT_FAILURE);
-	}
+	status = pthread_cancel(t_klienci_vip);
+	simple_error_handler(status, "pthread_cancel - t_klienci_vip");
+	status = pthread_join(t_klienci_vip, NULL);
+	simple_error_handler(status, "pthread_join - t_klienci_vip");
+	status = pthread_mutex_destroy(&mutex_czas_wyjscia);
+	simple_error_handler(status, "pthread_mutex_destroy - mutex_czas_wyjscia");
 }
 
 void signal_handler(int sig)
@@ -253,10 +227,7 @@ void* okresowe_zamkniecie()
 	int czas;
 	// Watek czeka do godziny 13:00
 	while ((czas = *((int *)shm_czas_adres)) < GODZINA * 4)
-	{
-		// my_sleep(SEKUNDA * 10);
 		pthread_testcancel();
-	}
 
 	// Blokuje wpuszczanie nowych klientow
 	semafor_p(semafor, 4);
@@ -267,10 +238,7 @@ void* okresowe_zamkniecie()
 
 	// Czeka az ostatni klient wyjdzie
 	while ((czas = *((int *)shm_czas_adres)) < ostatni_klient_czas_wyjscia)
-	{
-		// my_sleep(SEKUNDA);
 		pthread_testcancel();
-	}
 
 	godz_sym(*((int *)shm_czas_adres), godzina);
 	set_color(CYAN);
@@ -278,10 +246,7 @@ void* okresowe_zamkniecie()
 
 	// Czeka godzine od wyjscia ostatniego klienta
 	while ((czas = *((int *)shm_czas_adres)) < ostatni_klient_czas_wyjscia + GODZINA)
-	{
-		// my_sleep(SEKUNDA);
 		pthread_testcancel();
-	}
 
 	godz_sym(*((int *)shm_czas_adres), godzina);
 	set_color(CYAN);

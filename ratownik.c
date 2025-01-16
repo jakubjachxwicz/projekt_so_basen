@@ -2,15 +2,14 @@
 #include "header.h"
 
 
-pid_t pid_macierzysty, pid_ratownik1, pid_ratownik2, pid_ratownik3;
+pid_t  pid_ratownik1, pid_ratownik2, pid_ratownik3;
 char godzina[9];
 char* shm_czas_adres;
 pthread_mutex_t mutex_olimp, mutex_rek, mutex_brod;
 pthread_t t_wpuszczanie_klientow, t_wychodzenie_klientow, t_wysylanie_sygnalu;
 struct kom_ratownik kom;
 int msq_klient_ratownik, fifo_fd, ktory_basen, semafor;
-bool zakaz_wstepu;
-volatile bool flag_obsluga_klientow;
+volatile bool flag_obsluga_klientow, zakaz_wstepu;
 
 void* wpuszczanie_klientow_olimpijski(void *arg);
 void* wpuszczanie_klientow_rekreacyjny(void *arg);
@@ -24,7 +23,6 @@ int main()
     signal(SIGINT, signal_handler);
     signal(SIGTSTP, SIG_DFL);
 
-    pid_macierzysty = getpid();
     if (setpgid(0, 0) == -1)
     {
         perror("setpgid - glowny proces ratownikow");
@@ -67,7 +65,6 @@ int main()
         perror("shmget - tworzenie pamieci wspoldzielonej do obługi czasu");
         exit(EXIT_FAILURE);
     }
-
     shm_czas_adres = (char*)shmat(shm_czas_id, NULL, 0);
     if (shm_czas_adres == (char*)(-1))
     {
@@ -93,9 +90,11 @@ int main()
         }
         ktory_basen = 1;
 
+        // Inicjowanie tablicy na PID'y klientow
         int klienci[X1 + 1], status;
         memset(klienci, 0, sizeof(klienci));  
 
+        // Inicjowanie mutexa i watkow w procesie
         status = pthread_mutex_init(&mutex_olimp, NULL);
         simple_error_handler(status, "pthread_mutex_init - mutex_olimp");
 
@@ -124,6 +123,7 @@ int main()
         if (pid_ratownik2 < 0)
         {
             perror("fork - proces ratownika 2");
+            kill(pid_ratownik1, SIGINT);
             exit(EXIT_FAILURE);
         } else if (pid_ratownik2 == 0)
         {
@@ -137,9 +137,11 @@ int main()
             }
             ktory_basen = 2;
 
+            // Inicjowanie tablicy na PID'y i wiek klientow
             int klienci[2][X2 + 1], status;
             memset(klienci, 0, sizeof(klienci));
 
+            // Inicjowanie mutexa i watkow w procesie
             status = pthread_mutex_init(&mutex_rek, NULL);
             simple_error_handler(status, "pthread_mutex_init - mutex_rek");
 
@@ -168,6 +170,8 @@ int main()
             if (pid_ratownik3 < 0)
             {
                 perror("fork - proces ratownika 3");
+                kill(pid_ratownik1, SIGINT);
+                kill(pid_ratownik2, SIGINT);
                 exit(EXIT_FAILURE);
             } else if (pid_ratownik3 == 0)
             {
@@ -181,9 +185,11 @@ int main()
                 }
                 ktory_basen = 3;
 
+                // Inicjowanie tablicy na PID'y klientow
                 int klienci[X3 + 1], status;
                 memset(klienci, 0, sizeof(klienci));
 
+                // Inicjowanie mutexa i watkow w procesie
                 status = pthread_mutex_init(&mutex_brod, NULL);
                 simple_error_handler(status, "pthread_mutex_init - mutex_brod");
 
@@ -295,6 +301,7 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
             strcpy(kom.mtext, "basen pelny");
         else
         {
+            // Dodawanie danych klienta do tablicy
             klienci[0]++;
             dodaj_do_tablicy(klienci, X1, kom.ktype);
 
@@ -348,6 +355,7 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
             strcpy(kom.mtext, "srednia wieku za wysoka");
         else
         {
+            // Dodawanie danych klienta do tablicy
             klienci[0][0] += ile_osob;
             dodaj_do_tablicy_X2(klienci, X2, kom.ktype, wiek);
             if (wiek_opiekuna)
@@ -401,6 +409,7 @@ void* wpuszczanie_klientow_brodzik(void *arg)
             strcpy(kom.mtext, "brodzik pelny");
         else
         {
+            // Dodawanie danych klienta do tablicy
             klienci[0]++;
             dodaj_do_tablicy(klienci, X3, kom.ktype);
 
@@ -426,7 +435,6 @@ void* wychodzenie_klientow(void *arg)
     int *klienci = (int *)arg;
     int pid;
 
-    // Stałe otwarcie FIFO
     char file_name[13];
     strcpy(file_name, "fifo_basen_");
     sprintf(file_name + strlen(file_name), "%d", ktory_basen);
@@ -474,6 +482,9 @@ void* wychodzenie_klientow(void *arg)
                 printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
 
                 int (*klienci_x2)[X2 + 1] = (int (*)[X2 + 1])klienci;
+
+                // ile = 1: jeden klient
+                // ile = 2: dziecko z opiekunem
                 int ile = ile_osob(klienci_x2[0], X2, pid);
 
                 klienci_x2[0][0] -= ile;
@@ -503,7 +514,6 @@ void* wychodzenie_klientow(void *arg)
         }
     }
 
-    // Zamknięcie FIFO po zakończeniu pętli
     if (close(fifo_fd) == -1)
     {
         perror("close - zamkniecie fifo (ratownik)");
@@ -520,15 +530,18 @@ void* wysylanie_sygnalu(void *arg)
     union sigval sig_data;
     sig_data.sival_int = ktory_basen;
 
-    while (*((int*)(shm_czas_adres)) < (DOBA - 7200))
+    while (*((int*)(shm_czas_adres)) < (DOBA - 2 * GODZINA))
     {
+        // t1 - godzina wyslania SIGURS1
+        // t2 - godzina wyslania SIGUSR2
         int t1, t2, diff;
         t1 = *((int*)(shm_czas_adres)) + ((rand() % (31 * MINUTA)) + 30 * MINUTA); // 60 - 120 minut
         diff = (rand() % (36 * MINUTA)) + 15 * MINUTA; // 15 - 50 minut
         t2 = t1 + diff;
-        if (t2 > DOBA - 7200)
+        if (t2 > DOBA - 2 * GODZINA)
             continue;
 
+        // Czeka do t1
         while (*((int*)(shm_czas_adres)) < t1)
             pthread_testcancel();
         
@@ -536,6 +549,7 @@ void* wysylanie_sygnalu(void *arg)
         set_color(MAGENTA);
         printf("[%s RATOWNIK %d] wysylam SIGUSR1 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
         
+        // Tablica na wyrzuconych klientow, do ktorych wyslany bedzie potem SIGUSR2
         int wyrzuceni[(ktory_basen == 1 ? X1 : ((ktory_basen == 2) ? X2 : X3))];
         switch (ktory_basen)
         {
@@ -562,6 +576,7 @@ void* wysylanie_sygnalu(void *arg)
                 klienci[0] = 0;
                 unlock_mutex(&mutex_olimp);
 
+                // Czeka do t2
                 while (*((int*)(shm_czas_adres)) < t2)
                     pthread_testcancel();
                 lock_mutex(&mutex_olimp);
@@ -604,6 +619,7 @@ void* wysylanie_sygnalu(void *arg)
                 klienci_x2[0][0] = 0;
                 unlock_mutex(&mutex_rek);
 
+                // Czeka do t2
                 while (*((int*)(shm_czas_adres)) < t2)
                     pthread_testcancel();
                 lock_mutex(&mutex_rek);
@@ -644,6 +660,7 @@ void* wysylanie_sygnalu(void *arg)
                 klienci[0] = 0;
                 unlock_mutex(&mutex_brod);
 
+                // Czeka do t2
                 while (*((int*)(shm_czas_adres)) < t2)
                     pthread_testcancel();
                 lock_mutex(&mutex_brod);

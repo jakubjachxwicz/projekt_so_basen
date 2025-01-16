@@ -20,7 +20,6 @@ int main()
     signal(SIGCONT, signal_handler);
     stop_time = false;
     
-    // Inicjowanie semaforkow
     key_t key = ftok(".", 51);
     if (key == -1)
 	{
@@ -37,7 +36,7 @@ int main()
 
     // Semafory:
     // 0: klienci opuszczajacy basen
-    // 1 - 3: klienci zwykli podchodzacy do kasy
+    // 1 - 3: obsluga zwyklych klientow przy kasie
     // 4: okresowe zamykanie
     // 5: klienci VIP
     // 6: kolejka do kompleksu basenow
@@ -89,7 +88,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    // Inicjowanie kolejek komunikatow
+    // Kolejka do komunikacji klient VIP / kasjer
     msq_kolejka_vip = msgget(key, IPC_CREAT | 0600);
     if (msq_kolejka_vip == -1)
     {
@@ -97,6 +96,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
+    // Kolejka do komuniakcji klient / ratownik
     msq_klient_ratownik = msgget(key_czas, IPC_CREAT | 0600);
     if (msq_klient_ratownik == -1)
     {
@@ -104,7 +104,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    // Inicjowanie pam. wspoldzielonej do wymiany kasjer/klient/ratownik
+    // Inicjowanie pam. wspoldzielonej do wymiany kasjer/klient
     shm_id = shmget(key, sizeof(struct dane_klienta), 0600|IPC_CREAT);
     if (shm_id == -1)
     {
@@ -156,6 +156,7 @@ int main()
         if (pid_kasjer < 0)
         {
             perror("fork error - proces kasjera");
+            kill(pid_ratownicy, SIGINT);
             exit(EXIT_FAILURE);
         } else if (pid_kasjer == 0)
         {
@@ -171,16 +172,13 @@ int main()
             if (pid_klienci < 0)
             {
                 perror("fork error - proces klientow");
+                kill(pid_ratownicy, SIGINT);
+                kill(pid_kasjer, SIGINT);
                 exit(EXIT_FAILURE);
             }
             else if (pid_klienci == 0)
             {
-                char pid_ratownicy_str[10];
-                sprintf(pid_ratownicy_str, "%d", pid_ratownicy);
-                char pid_kasjer_str[10];
-                sprintf(pid_kasjer_str, "%d", pid_kasjer);
-
-                if (execl("./klient", "klient", pid_ratownicy_str, pid_kasjer_str, NULL) == -1)
+                if (execl("./klient", "klient", NULL) == -1)
                 {
                     perror("execl - klient.c");
                     exit(EXIT_FAILURE);
@@ -201,7 +199,6 @@ int main()
     czyszczenie();
     return 0;
 }
-
 
 void *czasomierz()
 {
@@ -260,7 +257,6 @@ void czyszczenie()
     else
         printf("Proces klientow (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
-    // semafor_v(semafor, 4);
     finished = waitpid(pid_kasjer, &status, 0);
     if (finished == -1) perror("wait - kasjer");  
     else if (WIFEXITED(status)) 
@@ -275,9 +271,12 @@ void czyszczenie()
     else
         printf("Proces ratownikow (PID: %d) zakonczyl sie w nieoczekiwany sposob, status: %d\n", finished, status);
 
-    if (pthread_join(t_czasomierz, NULL) != 0)
+    status = pthread_join(t_czasomierz, NULL);
+    simple_error_handler(status, "pthread_join - watek czasomierza");
+
+    if (unlink("fifo_basen_1") == -1 || unlink("fifo_basen_2") == -1 || unlink("fifo_basen_3") == -1) 
     {
-        perror("pthread_join - watek czasomierza");
+        perror("unlink - usuwanie FIFO");
         exit(EXIT_FAILURE);
     }
 
@@ -323,9 +322,6 @@ void signal_handler(int sig)
     {
         kill(-pid_ratownicy, SIGTSTP);
         kill(-pid_klienci, SIGTSTP);
-
-        // set_color(RESET);
-        // printf("ILOSC PROCESOW UZYTKOWNIKAAAAAA =%d\n", licz_procesy_uzytkownika());
 
         raise(SIGSTOP);
     }

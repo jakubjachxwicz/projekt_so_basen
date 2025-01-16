@@ -10,12 +10,9 @@
 #define KOM_RATOWNIK_2 4
 #define KOM_RATOWNIK_3 5
 
-// Ile mikrosekund irl trwa jedna sekunda w symulacji
-// 5000 - 3 min 36 s + 7 s
-// 2500 - 1 min 48 s + 7 s
-// 1250 - 54 s + 7 s
-// 1667 - 1 min 12 s + 7 s
-#define SEKUNDA 3000
+// Ile mikrosekund trwa jedna sekunda w symulacji
+#define SEKUNDA 5000
+
 #define GODZINA 3600
 #define MINUTA 60
 #define DOBA 43200
@@ -47,6 +44,7 @@ struct dane_klienta
     int godz_wyjscia;
 };
 
+// Struktura komunikatu do wymiany klient / ratownik
 struct kom_ratownik
 {
     long mtype;
@@ -56,6 +54,7 @@ struct kom_ratownik
     int wiek_opiekuna;
 };
 
+// Struktura komunikatu do wymiany klient VIP / kasjer
 struct kom_kolejka_vip
 {
     long mtype;

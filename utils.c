@@ -73,6 +73,7 @@ void set_color(const char* color)
     printf("%s", color);
 }
 
+// Dodanie PID klienta do tablicy (basen olimpijski i brodzik)
 void dodaj_do_tablicy(int* tab, int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
@@ -85,6 +86,7 @@ void dodaj_do_tablicy(int* tab, int roz, int pid)
 	}
 }
 
+// Dodanie PID i wieku klienta do tablicy (basen rekreacyjny)
 void dodaj_do_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid, int wiek)
 {
 	for (int i = 1; i <= roz; i++)
@@ -98,34 +100,24 @@ void dodaj_do_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid, int wiek)
 	}
 }
 
+// Usuniecie PID klienta do tablicy (basen olimpijski i brodzik)
 void usun_z_tablicy(int* tab, int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
 	{
-		// set_color(RESET);
-		// printf("tab[%d] = %d, do skasowania: %d\n", i, tab[i], pid);
 		if (tab[i] == pid)
 		{
 			tab[i] = 0;
 			return;
 		}
 	}
-	// set_color(RESET);
-	// printf("nie skasowalim, roz = %d, pid do kasowania = %d\n", roz, pid);
-	// for(int j = 0; j <= roz; j++)
-	// {
-	// 	set_color(RESET);
-	// 	printf("tab[%d] = %d\n", j, tab[j]);
-	// }
-	// exit(2);
 }
 
+// Usuniecie PID i wieku klienta do tablicy (basen rekreacyjny)
 void usun_z_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid)
 {
 	for (int i = 1; i <= roz; i++)
 	{
-		// set_color(RESET);
-		// printf("tab[0][%d] = %d, do skasowania: %d\n", i, tab[0][i], pid);
 		if (tab[0][i] == pid)
 		{
 			tab[0][i] = 0;
@@ -133,17 +125,9 @@ void usun_z_tablicy_X2(int (*tab)[X2 + 1], int roz, int pid)
 			return;
 		}
 	}
-	// set_color(RESET);
-	// printf("nie skasowalim, roz = %d, pid do kasowania = %d\n", roz, pid);
-	// for(int j = 0; j < 2; j++)
-	// 	for (int k = 0; k <= roz; k++)
-	// 	{
-	// 		set_color(RESET);
-	// 		printf("tab[%d][%d] = %d\n", j, k, tab[j][k]);
-	// 	}
-	// exit(3);
 }
 
+// Liczenie ilosci osob przebywajacych na basenie
 int ile_osob(int* tab, int roz, int pid)
 {
 	int ile = 0;
@@ -156,6 +140,7 @@ int ile_osob(int* tab, int roz, int pid)
 	return ile;
 }
 
+// Licznie sredniej wieku w basenie rekreacyjnym
 double srednia_wieku(int* tab, int roz, int nowy)
 {
 	int n = 0, suma = 0;
@@ -172,24 +157,29 @@ double srednia_wieku(int* tab, int roz, int nowy)
 	return sr;
 }
 
+// Funkcja blokowania mutexa z obluga bledow
 void lock_mutex(pthread_mutex_t *mutex)
 {
-	if (pthread_mutex_lock(mutex) != 0)
+	int status;
+	if ((status = pthread_mutex_lock(mutex)) != 0)
 	{
-		perror("pthread_mutex_lock - problem z zablokowaniem mutexa");
+		fprintf(stderr, "pthread_mutex_lock - problem z zablokowaniem mutexa, status: %d\n", status);
 		exit(EXIT_FAILURE);
 	}
 }
 
+// Funkcja blokowania mutexa z obluga bledow
 void unlock_mutex(pthread_mutex_t *mutex)
 {
-	if (pthread_mutex_unlock(mutex) != 0)
+	int status;
+	if ((status = pthread_mutex_unlock(mutex)) != 0)
 	{
-		perror("pthread_mutex_lock - problem z odblokowaniem mutexa");
+		fprintf(stderr, "pthread_mutex_lock - problem z odblokowaniem mutexa, status: %d\n", status);
 		exit(EXIT_FAILURE);
 	}
 }
 
+// Funkcja usleep z oblsuga bledow
 void my_sleep(int qs)
 {
 	if (usleep(qs) != 0)
@@ -202,6 +192,7 @@ void my_sleep(int qs)
 	}
 }
 
+// Obsluga bledow dla funkcji nie ustawiajacych errno
 void simple_error_handler(int status, const char *msg)
 {
 	if (status != 0)
@@ -252,6 +243,7 @@ int licz_procesy_uzytkownika() {
     return liczba_procesow;
 }
 
+// Wyswietlanie ilsosci oraz PID klientow (basen olimpijski i brodzik)
 void wyswietl_klientow(int ktory_basen, int* klienci)
 {
 	set_color(RESET);
@@ -272,6 +264,7 @@ void wyswietl_klientow(int ktory_basen, int* klienci)
 	}
 }
 
+// Wyswietlanie ilsosci, PID oraz wieku klientow (basen rekreacyjny)
 void wyswietl_klientow_rek(int (*klienci)[X2 + 1])
 {
 	set_color(RESET);
