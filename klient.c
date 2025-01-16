@@ -15,7 +15,7 @@ char* shm_czas_adres;
 int semafor, ktory_basen, zakaz_wejscia[3];
 
 pthread_t t_usuwanie_procesow;
-pthread_mutex_t mutex_klienta;
+//pthread_mutex_t mutex_klienta;
 
 volatile bool flag_usuwanie, flag_opuszczony_semafor;
 
@@ -226,13 +226,13 @@ int main(int argc, char *argv[])
                 kom.wiek = klient.wiek;
                 kom.wiek_opiekuna = klient.wiek_opiekuna;
 
-                simple_error_handler(pthread_mutex_init(&mutex_klienta, NULL), "pthread_mutex_init - mutex_klienta");
+                //simple_error_handler(pthread_mutex_init(&mutex_klienta, NULL), "pthread_mutex_init - mutex_klienta");
 
                 int choice = (rand() % 3) + 1;
 
                 while (true)
                 {
-                    lock_mutex(&mutex_klienta);
+                    //lock_mutex(&mutex_klienta);
                     if (*((int *)shm_czas_adres) > klient.godz_wyjscia)
                     {
                         if (ktory_basen)
@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
                         godz_sym(*((int *)shm_czas_adres), godzina);
                         set_color(BLUE);
                         printf("[%s KLIENT PID = %d] ide do domu\n", godzina, getpid());
-                        unlock_mutex(&mutex_klienta);
+                        //unlock_mutex(&mutex_klienta);
                         break;
                     }
 
@@ -283,10 +283,10 @@ int main(int argc, char *argv[])
                             printf("KLIENT PID = %d, odpowiedz: %s\n", klient.PID, kom.mtext);
                         }
                     }
-                    unlock_mutex(&mutex_klienta);
-                    my_sleep(SEKUNDA * 90);
+                    //unlock_mutex(&mutex_klienta);
+                    my_sleep(SEKUNDA * 120);
                 }
-                simple_error_handler(pthread_mutex_destroy(&mutex_klienta), "pthread_mutex_destroy - mutex_klienta");
+                //simple_error_handler(pthread_mutex_destroy(&mutex_klienta), "pthread_mutex_destroy - mutex_klienta");
             } else
             {
                 godz_sym(*((int *)shm_czas_adres), godzina);
@@ -333,20 +333,20 @@ void sigusr_handler(int sig, siginfo_t *info, void *context)
 {
     if (sig == SIGUSR1)
     {
-        lock_mutex(&mutex_klienta);
+        //lock_mutex(&mutex_klienta);
         set_color(BLUE);
         printf("KLIENT PID = %d otrzymalem SIGUSR1 na basen %d\n", getpid(), info->si_value.sival_int);
         zakaz_wejscia[info->si_value.sival_int - 1] = 1;
-        opuszczenie_basenu();
+        //opuszczenie_basenu();
         ktory_basen = 0;
-        unlock_mutex(&mutex_klienta);
+        //unlock_mutex(&mutex_klienta);
     } else if (sig == SIGUSR2)
     {
-        lock_mutex(&mutex_klienta);
+        //lock_mutex(&mutex_klienta);
         set_color(BLUE);
         printf("KLIENT PID = %d otrzymalem SIGUSR2 na basen %d\n", getpid(), info->si_value.sival_int);
         zakaz_wejscia[info->si_value.sival_int - 1] = 0;
-        unlock_mutex(&mutex_klienta);
+        //unlock_mutex(&mutex_klienta);
     }
 }
 

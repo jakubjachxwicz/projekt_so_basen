@@ -251,3 +251,34 @@ int licz_procesy_uzytkownika() {
     closedir(proc);
     return liczba_procesow;
 }
+
+void wyswietl_klientow(int ktory_basen, int* klienci)
+{
+	set_color(RESET);
+	switch (ktory_basen)
+	{
+		case 1:
+			printf("****   W olimpijskim: %d ****\n", klienci[0]);
+			for (int i = 1; i <= X1; i++)
+				(i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
+			printf("****************************\n");
+		break;
+		case 3:
+			printf("*****   W brodziku: %d *****\n", klienci[0]);
+			for (int i = 1; i <= X3; i++)
+				(i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
+			printf("***************************\n");
+		break;
+	}
+}
+
+void wyswietl_klientow_rek(int (*klienci)[X2 + 1])
+{
+	set_color(RESET);
+	printf("****   W rekreacyjnym: %d ****\n", klienci[0][0]);
+	for (int i = 1; i <= X2; i++)
+		(i < X2) ? printf("%d, ", klienci[0][i]) : printf("%d\n", klienci[0][i]);
+	for (int i = 1; i <= X2; i++)
+		(i < X2) ? printf("%d, ", klienci[1][i]) : printf("%d\n", klienci[1][i]);
+	printf("****************************\n");
+}

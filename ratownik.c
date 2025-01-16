@@ -23,7 +23,6 @@ int main()
 {
     signal(SIGINT, signal_handler);
     signal(SIGTSTP, SIG_DFL);
-    srand(time(NULL));
 
     pid_macierzysty = getpid();
     if (setpgid(0, 0) == -1)
@@ -85,6 +84,7 @@ int main()
     } else if (pid_ratownik1 == 0)
     {
         // Kod ratownika 1 - olimpijski
+        srand(getpid());
         signal(SIGTSTP, SIG_DFL);
         if (setpgid(0, getppid()) == -1)
         {
@@ -128,6 +128,7 @@ int main()
         } else if (pid_ratownik2 == 0)
         {
             // Kod ratownika 2 - rekreacyjny
+            srand(getpid());
             signal(SIGTSTP, SIG_DFL);
             if (setpgid(0, getppid()) == -1)
             {
@@ -171,6 +172,7 @@ int main()
             } else if (pid_ratownik3 == 0)
             {
                 // Kod ratownika 3 - brodzik
+                srand(getpid());
                 signal(SIGTSTP, SIG_DFL);
                 if (setpgid(0, getppid()) == -1)
                 {
@@ -297,11 +299,7 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
             dodaj_do_tablicy(klienci, X1, kom.ktype);
 
             semafor_p(semafor, 7);
-            set_color(RESET);
-            printf("****   W olimpijskim:   ****\n");
-            for (int i = 0; i <= X1; i++)
-                (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
-            printf("****************************\n");
+            wyswietl_klientow(1, klienci);
             semafor_v(semafor, 7);
         }
         unlock_mutex(&mutex_olimp);
@@ -356,13 +354,7 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
                 dodaj_do_tablicy_X2(klienci, X2, kom.ktype, wiek_opiekuna);
 
             semafor_p(semafor, 7);
-            set_color(RESET);
-            printf("****   W rekreacyjnym:   ****\n");
-            for (int i = 0; i <= X2; i++)
-                (i < X2) ? printf("%d, ", klienci[0][i]) : printf("%d\n", klienci[0][i]);
-            for (int i = 0; i <= X2; i++)
-                (i < X2) ? printf("%d, ", klienci[1][i]) : printf("%d\n", klienci[1][i]);
-            printf("****************************\n");
+            wyswietl_klientow_rek(klienci);
             semafor_v(semafor, 7);
         }
         unlock_mutex(&mutex_rek);
@@ -413,11 +405,7 @@ void* wpuszczanie_klientow_brodzik(void *arg)
             dodaj_do_tablicy(klienci, X3, kom.ktype);
 
             semafor_p(semafor, 7);
-            set_color(RESET);
-            printf("*****   W brodziku:   *****\n");
-            for (int i = 0; i <= X3; i++)
-                (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
-            printf("***************************\n");
+            wyswietl_klientow(3, klienci);
             semafor_v(semafor, 7);
         }
 
@@ -474,11 +462,7 @@ void* wychodzenie_klientow(void *arg)
                 usun_z_tablicy(klienci, X1, pid);
 
                 semafor_p(semafor, 7);
-                set_color(RESET);
-                printf("****   W olimpijskim:   ****\n");
-                for (int i = 0; i <= X1; i++)
-                    (i < X1) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
-                printf("****************************\n");
+                wyswietl_klientow(1, klienci);
                 semafor_v(semafor, 7);
                 unlock_mutex(&mutex_olimp);
                 break;
@@ -497,13 +481,7 @@ void* wychodzenie_klientow(void *arg)
                     usun_z_tablicy_X2(klienci_x2, X2, pid);
 
                 semafor_p(semafor, 7);
-                set_color(RESET);
-                printf("****   W rekreacyjnym:   ****\n");
-                for (int i = 0; i <= X2; i++)
-                    (i < X2) ? printf("%d, ", klienci_x2[0][i]) : printf("%d\n", klienci_x2[0][i]);
-                for (int i = 0; i <= X2; i++)
-                    (i < X2) ? printf("%d, ", klienci_x2[1][i]) : printf("%d\n", klienci_x2[1][i]);
-                printf("****************************\n");
+                wyswietl_klientow_rek(klienci_x2);
                 semafor_v(semafor, 7);
                 unlock_mutex(&mutex_rek);
                 break;
@@ -518,11 +496,7 @@ void* wychodzenie_klientow(void *arg)
                 usun_z_tablicy(klienci, X3, pid);
 
                 semafor_p(semafor, 7);
-                set_color(RESET);
-                printf("*****   W brodziku:   *****\n");
-                for (int i = 0; i <= X3; i++)
-                    (i < X3) ? printf("%d, ", klienci[i]) : printf("%d\n", klienci[i]);
-                printf("***************************\n");
+                wyswietl_klientow(3, klienci);
                 semafor_v(semafor, 7);
                 unlock_mutex(&mutex_brod);
                 break;
@@ -548,142 +522,151 @@ void* wysylanie_sygnalu(void *arg)
 
     while (*((int*)(shm_czas_adres)) < (DOBA - 7200))
     {
-        my_sleep(SEKUNDA * 1800);
-        if (rand() % 6 == ktory_basen)
+        int t1, t2, diff;
+        t1 = *((int*)(shm_czas_adres)) + ((rand() % (31 * MINUTA)) + 30 * MINUTA); // 60 - 120 minut
+        diff = (rand() % (36 * MINUTA)) + 15 * MINUTA; // 15 - 50 minut
+        t2 = t1 + diff;
+        if (t2 > DOBA - 7200)
+            continue;
+
+        while (*((int*)(shm_czas_adres)) < t1)
+            pthread_testcancel();
+        
+        godz_sym(*((int *)shm_czas_adres), godzina);
+        set_color(MAGENTA);
+        printf("[%s RATOWNIK %d] wysylam SIGUSR1 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
+        
+        int wyrzuceni[(ktory_basen == 1 ? X1 : ((ktory_basen == 2) ? X2 : X3))];
+        switch (ktory_basen)
         {
-            godz_sym(*((int *)shm_czas_adres), godzina);
-            set_color(MAGENTA);
-            printf("[%s RATOWNIK %d] wysylam SIGUSR1 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
-            
-            int wyrzuceni[(ktory_basen == 1 ? X1 : ((ktory_basen == 2) ? X2 : X3))];
-            switch (ktory_basen)
-            {
-                case 1:
-                    lock_mutex(&mutex_olimp);
-                    zakaz_wstepu = true;
-                    memset(wyrzuceni, 0, sizeof(wyrzuceni));
-                    for (int i = 1; i <= X1; i++)
+            case 1:
+                lock_mutex(&mutex_olimp);
+                zakaz_wstepu = true;
+                memset(wyrzuceni, 0, sizeof(wyrzuceni));
+                for (int i = 1; i <= X1; i++)
+                {
+                    if (klienci[i])
                     {
-                        if (klienci[i])
+                        wyrzuceni[i - 1] = klienci[i];
+                        if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
                         {
-                            wyrzuceni[i - 1] = klienci[i];
-                            if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
+                            if (errno != ESRCH)
                             {
-                                if (errno != ESRCH)
-                                {
-                                    perror("sigqueue - SIGUSR1 z basenu nr 1");
-                                    exit(EXIT_FAILURE);
-                                }
+                                perror("sigqueue - SIGUSR1 z basenu nr 1");
+                                exit(EXIT_FAILURE);
                             }
-                            // klienci[i] = 0;
+                        }
+                        klienci[i] = 0;
+                    }
+                }
+                klienci[0] = 0;
+                unlock_mutex(&mutex_olimp);
+
+                while (*((int*)(shm_czas_adres)) < t2)
+                    pthread_testcancel();
+                lock_mutex(&mutex_olimp);
+                for (int i = 0; i < X1; i++)
+                    if (wyrzuceni[i])
+                    {
+                        if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
+                        {
+                            if (errno != ESRCH)
+                            {
+                                perror("sigqueue - SIGUSR2 z basenu nr 1");
+                                exit(EXIT_FAILURE);
+                            }
                         }
                     }
-                    // klienci[0] = 0;
-                    unlock_mutex(&mutex_olimp);
-
-                    my_sleep(SEKUNDA * ((rand() % 1200) + 600));
-                    lock_mutex(&mutex_olimp);
-                    for (int i = 0; i < X1; i++)
-                        if (wyrzuceni[i])
+                unlock_mutex(&mutex_olimp);
+                break;
+            case 2:
+                lock_mutex(&mutex_rek);
+                zakaz_wstepu = true;
+                int (*klienci_x2)[X2 + 1] = (int (*)[X2 + 1])klienci;
+                memset(wyrzuceni, 0, sizeof(wyrzuceni));
+                for (int i = 1; i <= X2; i++)
+                {
+                    if (klienci_x2[0][i])
+                    {
+                        wyrzuceni[i - 1] = klienci_x2[0][i];
+                        if (sigqueue(klienci_x2[0][i], SIGUSR1, sig_data) == -1)
                         {
-                            if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
+                            if (errno != ESRCH)
                             {
-                                if (errno != ESRCH)
-                                {
-                                    perror("sigqueue - SIGUSR2 z basenu nr 1");
-                                    exit(EXIT_FAILURE);
-                                }
+                                perror("sigqueue - SIGUSR1 z basenu nr 2");
+                                exit(EXIT_FAILURE);
                             }
                         }
-                    unlock_mutex(&mutex_olimp);
-                    break;
-                case 2:
-                    lock_mutex(&mutex_rek);
-                    zakaz_wstepu = true;
-                    int (*klienci_x2)[X2 + 1] = (int (*)[X2 + 1])klienci;
-                    memset(wyrzuceni, 0, sizeof(wyrzuceni));
-                    for (int i = 1; i <= X2; i++)
+                        klienci_x2[0][i] = 0;
+                        klienci_x2[1][i] = 0;
+                    }
+                }
+                klienci_x2[0][0] = 0;
+                unlock_mutex(&mutex_rek);
+
+                while (*((int*)(shm_czas_adres)) < t2)
+                    pthread_testcancel();
+                lock_mutex(&mutex_rek);
+                for (int i = 0; i < X2; i++)
+                    if (wyrzuceni[i] != 0)
                     {
-                        if (klienci_x2[0][i])
+                        if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
                         {
-                            wyrzuceni[i - 1] = klienci_x2[0][i];
-                            if (sigqueue(klienci_x2[0][i], SIGUSR1, sig_data) == -1)
+                            if (errno != ESRCH)
                             {
-                                if (errno != ESRCH)
-                                {
-                                    perror("sigqueue - SIGUSR1 z basenu nr 2");
-                                    exit(EXIT_FAILURE);
-                                }
+                                perror("sigqueue - SIGUSR2 z basenu nr 2");
+                                exit(EXIT_FAILURE);
                             }
-                            // klienci_x2[0][i] = 0;
-                            // klienci_x2[1][i] = 0;
                         }
                     }
-                    // klienci_x2[0][0] = 0;
-                    unlock_mutex(&mutex_rek);
-
-                    my_sleep(SEKUNDA * ((rand() % 1200) + 600));
-                    lock_mutex(&mutex_rek);
-                    for (int i = 0; i < X2; i++)
-                        if (wyrzuceni[i] != 0)
+                unlock_mutex(&mutex_rek);
+                break;
+            case 3:
+                lock_mutex(&mutex_brod);
+                zakaz_wstepu = true;
+                memset(wyrzuceni, 0, sizeof(wyrzuceni));
+                for (int i = 1; i <= X3; i++)
+                {
+                    if (klienci[i])
+                    {
+                        wyrzuceni[i - 1] = klienci[i];
+                        if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
                         {
-                            if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
+                            if (errno != ESRCH)
                             {
-                                if (errno != ESRCH)
-                                {
-                                    perror("sigqueue - SIGUSR2 z basenu nr 2");
-                                    exit(EXIT_FAILURE);
-                                }
+                                perror("sigqueue - SIGUSR1 z basenu nr 2");
+                                exit(EXIT_FAILURE);
                             }
                         }
-                    unlock_mutex(&mutex_rek);
-                    break;
-                case 3:
-                    lock_mutex(&mutex_brod);
-                    zakaz_wstepu = true;
-                    memset(wyrzuceni, 0, sizeof(wyrzuceni));
-                    for (int i = 1; i <= X3; i++)
+                        klienci[i] = 0;
+                    }
+                }
+                klienci[0] = 0;
+                unlock_mutex(&mutex_brod);
+
+                while (*((int*)(shm_czas_adres)) < t2)
+                    pthread_testcancel();
+                lock_mutex(&mutex_brod);
+                for (int i = 0; i < X3; i++)
+                    if (wyrzuceni[i] != 0)
                     {
-                        if (klienci[i])
+                        if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
                         {
-                            wyrzuceni[i - 1] = klienci[i];
-                            if (sigqueue(klienci[i], SIGUSR1, sig_data) == -1)
+                            if (errno != ESRCH)
                             {
-                                if (errno != ESRCH)
-                                {
-                                    perror("sigqueue - SIGUSR1 z basenu nr 2");
-                                    exit(EXIT_FAILURE);
-                                }
+                                perror("sigqueue - SIGUSR2 z basenu nr 3");
+                                exit(EXIT_FAILURE);
                             }
-                            // klienci[i] = 0;
                         }
                     }
-                    // klienci[0] = 0;
-                    unlock_mutex(&mutex_brod);
-
-                    my_sleep(SEKUNDA * ((rand() % 1200) + 600));
-                    lock_mutex(&mutex_brod);
-                    for (int i = 0; i < X3; i++)
-                        if (wyrzuceni[i] != 0)
-                        {
-                            if (sigqueue(wyrzuceni[i], SIGUSR2, sig_data) == -1)
-                            {
-                                if (errno != ESRCH)
-                                {
-                                    perror("sigqueue - SIGUSR2 z basenu nr 3");
-                                    exit(EXIT_FAILURE);
-                                }
-                            }
-                        }
-                    unlock_mutex(&mutex_brod);
-                    break;
-            }
-
-            godz_sym(*((int *)shm_czas_adres), godzina);
-            set_color(MAGENTA);
-            printf("[%s RATOWNIK %d] wysylam SIGUSR2 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
-            zakaz_wstepu = false;
+                unlock_mutex(&mutex_brod);
+                break;
         }
+
+        godz_sym(*((int *)shm_czas_adres), godzina);
+        set_color(MAGENTA);
+        printf("[%s RATOWNIK %d] wysylam SIGUSR2 do klientow basenu nr %d\n", godzina, getpid(), ktory_basen);
+        zakaz_wstepu = false;
     }
     
     return NULL;

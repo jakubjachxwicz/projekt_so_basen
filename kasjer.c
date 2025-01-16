@@ -101,7 +101,7 @@ int main()
 		semafor_p(semafor, 2);
 		memcpy(&klient, shm_adres, sizeof(struct dane_klienta));
 
-		if ((*((int *)shm_czas_adres)) > DOBA - 3600 || flag_centrum_zamkniete)
+		if ((*((int *)shm_czas_adres)) > DOBA - GODZINA || flag_centrum_zamkniete)
 			klient.wpuszczony = false;
 		else if ((klient.wiek > 18 || klient.wiek < 10) && klient.pieniadze >= 60)
 		{
