@@ -270,6 +270,7 @@ void signal_handler(int sig)
     }
 }
 
+// Obsługa klientów chcących wejść na basen olimpijksi
 void* wpuszczanie_klientow_olimpijski(void *arg)
 {
     int *klienci = (int *)arg;
@@ -278,6 +279,7 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
     kom.mtype = KOM_RATOWNIK_1;
     while (flag_obsluga_klientow)
     {
+        // Oczekuwanie na komunikat
         if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), KOM_RATOWNIK_1, 0) == -1)
         {
             if (errno != EINTR)
@@ -311,6 +313,7 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
         }
         unlock_mutex(&mutex_olimp);
 
+        // Wysłanie komunikatu zwrotnego
         if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
         {
             perror("msgsnd - ratownik 1: wysylanie komunikatu do wejscia do basenu olimpijskiego");
@@ -321,6 +324,7 @@ void* wpuszczanie_klientow_olimpijski(void *arg)
     return NULL;
 }
 
+// Obsługa klientów chcących wejść na basen rekreacyjny
 void* wpuszczanie_klientow_rekreacyjny(void *arg)
 {
     int (*klienci)[X2 + 1] = (int (*)[X2 + 1])arg;
@@ -329,6 +333,7 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
     kom.mtype = KOM_RATOWNIK_2;
     while (flag_obsluga_klientow)
     {
+        // Oczekiwanie na komunikat od klienta
         if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), KOM_RATOWNIK_2, 0) == -1)
         {
             if (errno != EINTR)
@@ -367,6 +372,7 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
         }
         unlock_mutex(&mutex_rek);
 
+        // Wysłanie komunikatu zwrotnego
         if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
         {
             perror("msgsnd - ratownik 2: wysylanie komunikatu do wejscia do basenu rekreacyjnego");
@@ -377,6 +383,7 @@ void* wpuszczanie_klientow_rekreacyjny(void *arg)
     return NULL;
 }
 
+// Obsługa klientów chcących wejść do brodzika
 void* wpuszczanie_klientow_brodzik(void *arg)
 {
     int *klienci = (int *)arg;
@@ -385,6 +392,7 @@ void* wpuszczanie_klientow_brodzik(void *arg)
     kom.mtype = KOM_RATOWNIK_3;
     while (flag_obsluga_klientow)
     {
+        // Oczekiwanie na komunikat od klientów
         if (msgrcv(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), KOM_RATOWNIK_3, 0) == -1)
         {
             if (errno != EINTR)
@@ -420,6 +428,7 @@ void* wpuszczanie_klientow_brodzik(void *arg)
 
         unlock_mutex(&mutex_brod);
 
+        // Wysłanie komunikatu zwrotnego
         if (msgsnd(msq_klient_ratownik, &kom, sizeof(kom) - sizeof(long), 0) == -1)
         {
             perror("msgsnd - ratownik 3: wysylanie komunikatu do wejscia do brodzika");
@@ -430,11 +439,13 @@ void* wpuszczanie_klientow_brodzik(void *arg)
     return NULL;
 }
 
+// Śledzenie klientów wychodzących z basenu i wykreślanie ich z listy
 void* wychodzenie_klientow(void *arg)
 {
     int *klienci = (int *)arg;
     int pid;
 
+    // Otwarcie odpowiedniego FIFO przez ratownika
     char file_name[13];
     strcpy(file_name, "fifo_basen_");
     sprintf(file_name + strlen(file_name), "%d", ktory_basen);
@@ -448,6 +459,7 @@ void* wychodzenie_klientow(void *arg)
 
     while (flag_obsluga_klientow)
     {
+        // Oczekuwanie na komunikat z PID'em klienta w FIFO
         ssize_t bytes_read = read(fifo_fd, &pid, sizeof(pid));
         if (bytes_read == -1)
         {
@@ -459,6 +471,7 @@ void* wychodzenie_klientow(void *arg)
 
         switch (ktory_basen)
         {
+            // Klient wychodzi z basenu olimpijskiego
             case 1:
                 lock_mutex(&mutex_olimp);
 
@@ -466,6 +479,7 @@ void* wychodzenie_klientow(void *arg)
                 set_color(MAGENTA);
                 printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
 
+                // Usunięcie klienta z tablicy
                 klienci[0]--;
                 usun_z_tablicy(klienci, X1, pid);
 
@@ -474,6 +488,7 @@ void* wychodzenie_klientow(void *arg)
                 semafor_v(semafor, 7);
                 unlock_mutex(&mutex_olimp);
                 break;
+            // Klient wychodzi z basenu rekreacyjnego
             case 2:
                 lock_mutex(&mutex_rek);
 
@@ -487,6 +502,7 @@ void* wychodzenie_klientow(void *arg)
                 // ile = 2: dziecko z opiekunem
                 int ile = ile_osob(klienci_x2[0], X2, pid);
 
+                // Usunięcie klienta z tablicy
                 klienci_x2[0][0] -= ile;
                 for (int j = 0; j < ile; j++)
                     usun_z_tablicy_X2(klienci_x2, X2, pid);
@@ -496,6 +512,7 @@ void* wychodzenie_klientow(void *arg)
                 semafor_v(semafor, 7);
                 unlock_mutex(&mutex_rek);
                 break;
+            // Klient wychodzi z brodzika
             case 3:
                 lock_mutex(&mutex_brod);
 
@@ -503,6 +520,7 @@ void* wychodzenie_klientow(void *arg)
                 set_color(MAGENTA);
                 printf("[%s RATOWNIK %d] klient PID = %d idzie do domu\n", godzina, getpid(), pid);
 
+                // Usunięcie klienta z tablicy
                 klienci[0]--;
                 usun_z_tablicy(klienci, X3, pid);
 
@@ -530,6 +548,7 @@ void* wysylanie_sygnalu(void *arg)
     union sigval sig_data;
     sig_data.sival_int = ktory_basen;
 
+    // Sygnały wysyłane są do godziny 19:00
     while (*((int*)(shm_czas_adres)) < (DOBA - 2 * GODZINA))
     {
         // t1 - godzina wyslania SIGURS1
@@ -553,10 +572,13 @@ void* wysylanie_sygnalu(void *arg)
         int wyrzuceni[(ktory_basen == 1 ? X1 : ((ktory_basen == 2) ? X2 : X3))];
         switch (ktory_basen)
         {
+            // Wysłanie sygnału przez ratownika przy basenie olimpijskim
             case 1:
                 lock_mutex(&mutex_olimp);
+                // Ustawienie flagu zakazu wstępu na dany basen
                 zakaz_wstepu = true;
                 memset(wyrzuceni, 0, sizeof(wyrzuceni));
+                // Wysłanie SIGUSR1 i wyczyszczenie tablicy z klientami
                 for (int i = 1; i <= X1; i++)
                 {
                     if (klienci[i])
@@ -580,6 +602,7 @@ void* wysylanie_sygnalu(void *arg)
                 while (*((int*)(shm_czas_adres)) < t2)
                     pthread_testcancel();
                 lock_mutex(&mutex_olimp);
+                // Wysłanie SIGUSR2 do klientów z tablicy 'wyrzuceni'
                 for (int i = 0; i < X1; i++)
                     if (wyrzuceni[i])
                     {
@@ -594,11 +617,14 @@ void* wysylanie_sygnalu(void *arg)
                     }
                 unlock_mutex(&mutex_olimp);
                 break;
+            // Wysłanie sygnału przez ratownika przy basenie rekreacyjnym
             case 2:
                 lock_mutex(&mutex_rek);
+                // Ustawienie flagu zakazu wstępu na dany basen
                 zakaz_wstepu = true;
                 int (*klienci_x2)[X2 + 1] = (int (*)[X2 + 1])klienci;
                 memset(wyrzuceni, 0, sizeof(wyrzuceni));
+                // Wysłanie SIGUSR1 i wyczyszczenie tablicy z klientami
                 for (int i = 1; i <= X2; i++)
                 {
                     if (klienci_x2[0][i])
@@ -623,6 +649,7 @@ void* wysylanie_sygnalu(void *arg)
                 while (*((int*)(shm_czas_adres)) < t2)
                     pthread_testcancel();
                 lock_mutex(&mutex_rek);
+                // Wysłanie SIGUSR2 do klientów z tablicy 'wyrzuceni'
                 for (int i = 0; i < X2; i++)
                     if (wyrzuceni[i] != 0)
                     {
@@ -637,10 +664,13 @@ void* wysylanie_sygnalu(void *arg)
                     }
                 unlock_mutex(&mutex_rek);
                 break;
+            // Wysłanie sygnału przez ratownika przy brodziku
             case 3:
                 lock_mutex(&mutex_brod);
+                // Ustawienie flagu zakazu wstępu na dany basen
                 zakaz_wstepu = true;
                 memset(wyrzuceni, 0, sizeof(wyrzuceni));
+                // Wysłanie SIGUSR1 i wyczyszczenie tablicy z klientami
                 for (int i = 1; i <= X3; i++)
                 {
                     if (klienci[i])
@@ -664,6 +694,7 @@ void* wysylanie_sygnalu(void *arg)
                 while (*((int*)(shm_czas_adres)) < t2)
                     pthread_testcancel();
                 lock_mutex(&mutex_brod);
+                // Wysłanie SIGUSR2 do klientów z tablicy 'wyrzuceni'
                 for (int i = 0; i < X3; i++)
                     if (wyrzuceni[i] != 0)
                     {
