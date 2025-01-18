@@ -74,6 +74,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
+	// Inicjowanie mutexu i wątków do okresowe zamykania i obslugi klientów VIP
 	int status = pthread_mutex_init(&mutex_czas_wyjscia, NULL);
 	simple_error_handler(status, "pthread_mutex_init - mutex_czas_wyjscia");
 	status = pthread_create(&t_klienci_vip, NULL, &klienci_vip, NULL);
@@ -94,26 +95,31 @@ int main()
 			klient.wpuszczony = false;
 		else if ((klient.wiek > 18 || klient.wiek < 10) && klient.pieniadze >= 60)
 		{
+			// Obsługa kienta kupującego bilet normalny
 			klient.pieniadze -= 60;
 			klient.wpuszczony = true;
 			klient.godz_wyjscia = (*((int *)shm_czas_adres)) + GODZINA;
 
+			// Zapisanie czasu wyjścia
 			lock_mutex(&mutex_czas_wyjscia);
 			ostatni_klient_czas_wyjscia = klient.godz_wyjscia;
 			unlock_mutex(&mutex_czas_wyjscia);
 		} else if (klient.pieniadze >= 30)
 		{
+			// Obsługa kienta kupującego bilet ulgowy
 			klient.pieniadze -= 30;
 			klient.wpuszczony = true;
 			klient.godz_wyjscia = (*((int *)shm_czas_adres)) + GODZINA;
 
+			// Zapisanie czasu wyjścia
 			lock_mutex(&mutex_czas_wyjscia);
 			ostatni_klient_czas_wyjscia = klient.godz_wyjscia;
 			unlock_mutex(&mutex_czas_wyjscia);
 		} else
 			klient.wpuszczony = false;
 
-        memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
+        // Przesłanie danych z powrotem do klienta
+		memcpy(shm_adres, &klient, sizeof(struct dane_klienta));
 
 		godz_sym(*((int *)shm_czas_adres), godzina);
 		set_color(CYAN);
@@ -168,6 +174,7 @@ void signal_handler(int sig)
     }
 }
 
+// Funkcja wątku do obsługi klientów VIP
 void* klienci_vip()
 {
 	printf("Watek oblugi klientow VIP uruchomiony\n");
@@ -183,6 +190,7 @@ void* klienci_vip()
 
 	while (true)
 	{
+		// Odbieranie komunikatu od klienta
 		kom.mtype = KOM_KASJER;
 		if (msgrcv(msq_kolejka_vip, &kom, sizeof(kom) - sizeof(long), kom.mtype, 0) == -1)
         {
@@ -190,6 +198,7 @@ void* klienci_vip()
             exit(EXIT_FAILURE);
         }
 
+		// Sprawdzanie czy moze wejsc
 		kom.mtype = kom.ktype;
 		if (rand() % 30 == 16)
 			strcpy(kom.mtext, "karnet nie wazny");
@@ -200,11 +209,13 @@ void* klienci_vip()
 			strcpy(kom.mtext, "zapraszam");
 			kom.czas_wyjscia = (*((int *)shm_czas_adres)) + GODZINA;
 
+			// Zapisanie godziny wyjscia
 			lock_mutex(&mutex_czas_wyjscia);
 			ostatni_klient_czas_wyjscia = kom.czas_wyjscia;
 			unlock_mutex(&mutex_czas_wyjscia);
 		}
 
+		// Odesłanie komuniaktu zwrotnego
 		if (msgsnd(msq_kolejka_vip, &kom, sizeof(kom) - sizeof(long), 0) == -1)
 		{
             perror("msgsnd - kasjer: wysylanie komunikatu do klienta VIP");

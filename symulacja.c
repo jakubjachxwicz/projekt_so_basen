@@ -137,6 +137,7 @@ int main()
         }
     }
     
+    // Tworzenie procesu ratowników
     pid_ratownicy = fork();
     if (pid_ratownicy < 0)
     {
@@ -152,6 +153,7 @@ int main()
     }
     else
     {
+        // Tworzenie procesu kasjerów
         pid_kasjer = fork();
         if (pid_kasjer < 0)
         {
@@ -168,6 +170,7 @@ int main()
         }
         else
         {
+            // Tworzenie procesu klientów
             pid_klienci = fork();
             if (pid_klienci < 0)
             {
@@ -200,11 +203,15 @@ int main()
     return 0;
 }
 
+// Obsługa czasu w symulacji
+// Wartość zmiennej całkowitej w pamięci współdzielonej
+// oznacza ilość sekund od godziny 9:00 w symulaci
 void *czasomierz()
 {
     int *jaki_czas = (int *)shm_czas_adres;
-    while (*jaki_czas < 44100 && !stop_time)
+    while (*jaki_czas < DOBA + 900 && !stop_time)
     {
+        // SEKUNDA - ilość mikrosekund jaką trwa sekunda czasu w symulacji
         if (usleep(SEKUNDA) != 0)
         {
             if (errno != EINTR)
@@ -216,6 +223,7 @@ void *czasomierz()
         (*jaki_czas)++;
     }
 
+    // O godzinie 21:15 kończę pracę wszystkich procesów
     if (kill(-pid_klienci, SIGINT) != 0)
     {
         if (errno != ESRCH)
@@ -244,7 +252,7 @@ void *czasomierz()
     return 0;
 }
 
-
+// Usuwanie wszystkich strunktur
 void czyszczenie()
 {
     set_color(RESET);

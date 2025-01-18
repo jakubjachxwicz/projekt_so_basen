@@ -20,6 +20,7 @@
 #include "header.h"
 
 
+// Formatowanie czasu w symulacji do czytelnego formatu
 void godz_sym(int sekundy, char* res)
 {
     int sek_r = sekundy % 60;
@@ -30,6 +31,7 @@ void godz_sym(int sekundy, char* res)
     snprintf(res, 9, "%02d:%02d:%02d\n", godziny, min_r, sek_r);
 }
 
+// Podniesienie semafora
 static void semafor_v(int semafor_id, int numer_semafora)
 {
 	struct sembuf bufor_sem;
@@ -49,6 +51,7 @@ static void semafor_v(int semafor_id, int numer_semafora)
 	}
 }
 
+// Opuszczenie semafora
 static void semafor_p(int semafor_id, int numer_semafora)
 {
 	struct sembuf bufor_sem;
@@ -68,6 +71,7 @@ static void semafor_p(int semafor_id, int numer_semafora)
 	}
 }
 
+// Ustawienie koloru wyjścia terminala
 void set_color(const char* color) 
 {
     printf("%s", color);
@@ -157,7 +161,7 @@ double srednia_wieku(int* tab, int roz, int nowy)
 	return sr;
 }
 
-// Funkcja blokowania mutexa z obluga bledow
+// Funkcja blokowania mutexa z obsługą błędów
 void lock_mutex(pthread_mutex_t *mutex)
 {
 	int status;
@@ -168,7 +172,7 @@ void lock_mutex(pthread_mutex_t *mutex)
 	}
 }
 
-// Funkcja blokowania mutexa z obluga bledow
+// Funkcja odblokowania mutexa z obsługą błędów
 void unlock_mutex(pthread_mutex_t *mutex)
 {
 	int status;
@@ -179,7 +183,7 @@ void unlock_mutex(pthread_mutex_t *mutex)
 	}
 }
 
-// Funkcja usleep z oblsuga bledow
+// Funkcja usleep z obsługą błędów
 void my_sleep(int qs)
 {
 	if (usleep(qs) != 0)
@@ -192,7 +196,7 @@ void my_sleep(int qs)
 	}
 }
 
-// Obsluga bledow dla funkcji nie ustawiajacych errno
+// Obsluga błędów dla funkcji nie ustawiających errno
 void simple_error_handler(int status, const char *msg)
 {
 	if (status != 0)
@@ -202,6 +206,7 @@ void simple_error_handler(int status, const char *msg)
 	}
 }
 
+// Liczenie procesów użytkownika
 int licz_procesy_uzytkownika() {
     DIR *proc = opendir("/proc");
     if (!proc) 
@@ -243,7 +248,7 @@ int licz_procesy_uzytkownika() {
     return liczba_procesow;
 }
 
-// Wyswietlanie ilsosci oraz PID klientow (basen olimpijski i brodzik)
+// Wyświetlanie ilości oraz PID klientów (basen olimpijski i brodzik)
 void wyswietl_klientow(int ktory_basen, int* klienci)
 {
 	set_color(RESET);
@@ -264,7 +269,7 @@ void wyswietl_klientow(int ktory_basen, int* klienci)
 	}
 }
 
-// Wyswietlanie ilsosci, PID oraz wieku klientow (basen rekreacyjny)
+// Wyświetlanie ilości, PID oraz wieku klientów (basen rekreacyjny)
 void wyswietl_klientow_rek(int (*klienci)[X2 + 1])
 {
 	set_color(RESET);

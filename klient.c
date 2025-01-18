@@ -143,8 +143,10 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
+            // Semafor ograniczajacy ilosc klientow w kompleksie
             semafor_p(semafor, 6);
 
+            // Klienci ktorzy po godzinie 20:00 stoja dalej w kolejce odchodza
             if (*((int*)(shm_czas_adres)) > DOBA - 3600)
             {
                 semafor_v(semafor, 6);
@@ -152,7 +154,7 @@ int main(int argc, char *argv[])
                 exit(0);
             }
             
-            // Kod dzialania klienta
+            // Generowanie danych klienta
             struct dane_klienta klient;
             klient.PID = getpid();
             klient.wiek = (rand() % 70) + 1;
@@ -213,6 +215,7 @@ int main(int argc, char *argv[])
                 
             if (klient.wpuszczony)
             {
+                // Kod klienta wpuszczonego do kompleksu przez kasjera
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(BLUE);
                 printf("[%s KLIENT PID = %d] wchodze do kompleksu basenow\n", godzina, klient.PID);
@@ -239,6 +242,7 @@ int main(int argc, char *argv[])
                         break;
                     }
 
+                    // Klient nie jest na zadnym basenie
                     if (!ktory_basen)
                     {
                         // Klient wybiera, na ktory basen chce wejsc
@@ -271,6 +275,7 @@ int main(int argc, char *argv[])
                             printf("[%s KLIENT PID = %d] wchodze do basenu nr %d\n", godzina, klient.PID, ktory_basen);
                         }
 
+                        // Klient nie wpuszczony do basenu przez ratownika
                         if (!ktory_basen)
                         {
                             set_color(RED);
@@ -279,8 +284,10 @@ int main(int argc, char *argv[])
                     }
                     my_sleep(SEKUNDA * 120);
                 }
-            } else
+            } 
+            else
             {
+                // Klient nie wpuszczony do kompleksu basenowego
                 godz_sym(*((int *)shm_czas_adres), godzina);
                 set_color(RED);
                 printf("[%s KLIENT PID = %d] nie wpuszczono mnie do kompleksu basenow\n", godzina, getpid());
@@ -291,8 +298,9 @@ int main(int argc, char *argv[])
             exit(0);
         }
 
-        // my_sleep(SEKUNDA * ((rand() % 360) + 120));
-        my_sleep(SEKUNDA * ((rand() % 180) + 60));
+        // Przerwa pomiędzy pojawianiem się kolejnych klientów
+        my_sleep(SEKUNDA * ((rand() % 360) + 120));
+        // my_sleep(SEKUNDA * ((rand() % 180) + 60));
         // my_sleep(SEKUNDA * ((rand() % 6) + 5));
     }
 
@@ -316,6 +324,7 @@ void signal_handler(int sig)
 
 void sigusr_handler(int sig, siginfo_t *info, void *context)
 {
+    // SIGUSR1 - klient opuszcza dany basen i nie moze do niego wejsc
     if (sig == SIGUSR1)
     {
         set_color(BLUE);
@@ -324,7 +333,9 @@ void sigusr_handler(int sig, siginfo_t *info, void *context)
         // Blokuje wybor danego basenu i z niego wychodzi
         zakaz_wejscia[info->si_value.sival_int - 1] = 1;
         ktory_basen = 0;
-    } else if (sig == SIGUSR2)
+    } 
+    // SIGUSR2 - klient ponownie moze wejsc na dany banes
+    else if (sig == SIGUSR2)
     {
         set_color(BLUE);
         printf("KLIENT PID = %d otrzymalem SIGUSR2 na basen %d\n", getpid(), info->si_value.sival_int);
@@ -359,6 +370,7 @@ void opuszczenie_basenu()
     set_color(BLUE);
     printf("[%s KLIENT PID = %d] wychodze z basenu\n", godzina, getpid());
     
+    // Otwarcie odpowiedniego FIFO
     char file_name[13];
     strcpy(file_name, "fifo_basen_");
     sprintf(file_name + strlen(file_name), "%d", ktory_basen);
@@ -369,6 +381,7 @@ void opuszczenie_basenu()
         exit(EXIT_FAILURE);
     }
 
+    // Przekazanie swojego PID'u
     pid_t pid = getpid();
     if (write(fd, &pid, sizeof(pid)) == -1)
     {
